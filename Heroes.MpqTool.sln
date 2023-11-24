@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.8.34309.116
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Heroes.MpqTool", "Heroes.MpqTool\Heroes.MpqTool.csproj", "{274D0B05-6451-4C8F-848D-7C1728F70876}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Heroes.MpqTool", "Heroes.MpqTool\Heroes.MpqTool.csproj", "{274D0B05-6451-4C8F-848D-7C1728F70876}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{58D78F49-4CF4-481B-BDF6-4F1868187030}"
 	ProjectSection(SolutionItems) = preProject
@@ -12,7 +12,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{8F3B8F0B-F452-4259-BC83-D8FC6942E83A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Heroes.MpqTool.Tests", "Tests\Heroes.MpqTool.Tests\Heroes.MpqTool.Tests.csproj", "{0B4926F5-1539-4FF9-8661-826D43FEF469}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Heroes.MpqTool.Tests", "Tests\Heroes.MpqTool.Tests\Heroes.MpqTool.Tests.csproj", "{0B4926F5-1539-4FF9-8661-826D43FEF469}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

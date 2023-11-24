@@ -70,10 +70,10 @@ jobs:
     - powershell: dotnet pack $env:MAIN_PROJECT -c release --no-build -o $env:NUPKG_PATH 
       displayName: Nuget pack
 
-    - powershell: dotnet nuget sign $(nupkg_path)Heroes.StormReplayParser.*.nupkg --certificate-path $(Agent.TempDirectory)\certificate --certificate-password '$(cert_password)' --timestamper http://ts.ssl.com/legacy      
+    - powershell: dotnet nuget sign $(nupkg_path)*.nupkg --certificate-path $(Agent.TempDirectory)\certificate --certificate-password '$(cert_password)' --timestamper http://ts.ssl.com/legacy      
       displayName: Sign nuget pack
 
-    - powershell: dotnet nuget sign $(nupkg_path)Heroes.StormReplayParser.*.snupkg --certificate-path $(Agent.TempDirectory)\certificate --certificate-password '$(cert_password)' --timestamper http://ts.ssl.com/legacy      
+    - powershell: dotnet nuget sign $(nupkg_path)*.snupkg --certificate-path $(Agent.TempDirectory)\certificate --certificate-password '$(cert_password)' --timestamper http://ts.ssl.com/legacy      
       displayName: Sign symbol pack
               
     - powershell: |

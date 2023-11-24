@@ -46,7 +46,7 @@ jobs:
         installationPath: $(Agent.ToolsDirectory)\dotnet
 
     - powershell: |
-        $csproj = get-content Heroes.StormReplayParser\Heroes.StormReplayParser.csproj
+        $csproj = get-content $env:MAIN_PROJECT
         $sv = $csproj | select-string -pattern "<Version>"
         $sv -match "<Version>(?<content>.*)</Version>"
         $value = $matches['content']

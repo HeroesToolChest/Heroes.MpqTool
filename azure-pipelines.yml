@@ -29,15 +29,8 @@ jobs:
     - Windows
   pool:
     vmImage: 'windows-latest'
-  variables:
-    - group: secret
   condition: and(succeeded(), ne(variables['build.Reason'], 'PullRequest'))
   steps:
-    - task: DownloadSecureFile@1
-      displayName: Download cert
-      inputs:
-        secureFile: certificate
-
     - task: UseDotNet@2
       displayName: 'Use .NET 8 sdk'
       inputs:

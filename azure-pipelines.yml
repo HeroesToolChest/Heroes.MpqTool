@@ -2,6 +2,7 @@ variables:
   main_project: Heroes.MpqTool\Heroes.MpqTool.csproj
   publish_any_path: .\bin\publish\any\
   nupkg_path: .\bin\nupkg\any\
+  artifact_name: Heroes.MpqTool
 
 jobs:
 - template: azure-pipelines-template.yml
@@ -77,7 +78,7 @@ jobs:
         archiveType: 'zip'
         rootFolderOrFile: '$(publish_any_path)'
         includeRootFolder: false
-        archiveFile: '$(Build.ArtifactStagingDirectory)\Heroes.StormReplayParser.$(version).zip'
+        archiveFile: '$(Build.ArtifactStagingDirectory)\$(artifact_name).$(version).zip'
 
     - task: ArchiveFiles@2
       displayName: Archive Release Files - Tar
@@ -85,22 +86,22 @@ jobs:
         archiveType: 'zip'
         rootFolderOrFile: '$(publish_any_path)'
         includeRootFolder: false
-        archiveFile: '$(Build.ArtifactStagingDirectory)\Heroes.StormReplayParser.$(version).tar.gz'
+        archiveFile: '$(Build.ArtifactStagingDirectory)\$(artifact_name).$(version).tar.gz'
         
     - task: PublishBuildArtifacts@1
       displayName: Publish Artifacts - Release Files - Zip
       inputs:
-        pathtoPublish: '$(Build.ArtifactStagingDirectory)\Heroes.StormReplayParser.$(version).zip'
-        artifactName: 'Heroes.StormReplayParser'
+        pathtoPublish: '$(Build.ArtifactStagingDirectory)\$(artifact_name).$(version).zip'
+        artifactName: '$(artifact_name)'
 
     - task: PublishBuildArtifacts@1
       displayName: Publish Artifacts - Release Files - Tar
       inputs:
-        pathtoPublish: '$(Build.ArtifactStagingDirectory)\Heroes.StormReplayParser.$(version).tar.gz'
-        artifactName: 'Heroes.StormReplayParser'
+        pathtoPublish: '$(Build.ArtifactStagingDirectory)\$(artifact_name).$(version).tar.gz'
+        artifactName: '$(artifact_name)'
         
     - task: PublishBuildArtifacts@1
       displayName: Publish Artifact - Nuget
       inputs:
         pathtoPublish: '$(nupkg_path)'
-        artifactName: 'Heroes.StormReplayParser-Nuget'
+        artifactName: '$(artifact_name)-Nuget'

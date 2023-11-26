@@ -1,0 +1,12 @@
+name: Build
+
+on: [push]
+ 
+jobs:
+  build:
+    uses: koliva8245/github.workflows/.github/workflows/dotnet-build.yml@main
+    with:
+      dotnet-sdk: 8.0.X
+      main-project: Heroes.MpqTool/Heroes.MpqTool.csproj
+      artifact-name-prefix: Heroes.MpqTool
+      

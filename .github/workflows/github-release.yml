@@ -1,0 +1,14 @@
+name: Github Release
+
+on: workflow_dispatch
+  
+jobs:
+  deploy:
+    uses: koliva8245/github.workflows/.github/workflows/github-release.yml@main
+    with:
+      title: 'Heroes MpqTool'
+      app-name: Heroes.MpqTool
+      artificats-workflow: build.yml
+    secrets:
+      artifacts-dowload-token: ${{ secrets.PUBLIC_PAT }}
+      github-release-token: ${{ secrets.GITUB_RELEASE }}

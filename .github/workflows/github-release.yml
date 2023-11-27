@@ -4,7 +4,7 @@ on: workflow_dispatch
   
 jobs:
   deploy:
-    uses: koliva8245/github.workflows/.github/workflows/github-release.yml@main
+    uses: koliva8245/github.workflows/.github/workflows/build-template.yml@main
     with:
       title: 'Heroes MpqTool'
       app-name: Heroes.MpqTool

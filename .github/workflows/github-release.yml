@@ -5,10 +5,12 @@ on: workflow_dispatch
 jobs:
   deploy:
     uses: koliva8245/github.workflows/.github/workflows/github-release.yml@main
+    permissions:
+      contents: write
     with:
       title: 'Heroes MpqTool'
       app-name: Heroes.MpqTool
       artificats-workflow: build.yml
     secrets:
-      artifacts-dowload-token: ${{ secrets.PUBLIC_PAT }}
-      github-release-token: ${{ secrets.RELEASE_TOKEN }}
+      artifacts-dowload-token: ${{ secrets.GITHUB_TOKEN }}
+      github-release-token: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,13 @@
+name: Nuget Release
+
+on : workflow_dispatch
+  
+jobs:
+  deploy:
+    uses: koliva8245/github.workflows/.github/workflows/nuget-release.yml@main
+    with:
+      artificats-workflow: build.yml
+    secrets:
+      artifacts-dowload-token: ${{ secrets.PUBLIC_PAT }}
+      nuget-api-token: ${{ secrets.NUGET_API_TOKEN }}
+      

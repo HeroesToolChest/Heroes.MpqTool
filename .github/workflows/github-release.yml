@@ -12,5 +12,4 @@ jobs:
       app-name: Heroes.MpqTool
       artificats-workflow: build.yml
     secrets:
-      artifacts-dowload-token: ${{ secrets.GITHUB_TOKEN }}
-      github-release-token: ${{ secrets.GITHUB_TOKEN }}
+      token: ${{ secrets.GITHUB_TOKEN }}

@@ -8,7 +8,7 @@
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
     <Authors>Kevin Oliva</Authors>
     <Copyright>Copyright © 2023 - 2024 Kevin Oliva</Copyright>
-    <Description></Description>
+    <Description>Used to parse (Heroes of the Storm) mpq files.</Description>
     <PackageProjectUrl>https://github.com/HeroesToolChest/Heroes.MpqTool</PackageProjectUrl>
     <RepositoryUrl>https://github.com/HeroesToolChest/Heroes.MpqTool</RepositoryUrl>
     <PackageReleaseNotes>https://github.com/HeroesToolChest/Heroes.MpqTool/releases</PackageReleaseNotes>

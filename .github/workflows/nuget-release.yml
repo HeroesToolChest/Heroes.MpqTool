@@ -1,6 +1,6 @@
 name: Nuget Release
 
-on : workflow_dispatch
+on: workflow_dispatch
   
 jobs:
   deploy:
@@ -8,6 +8,5 @@ jobs:
     with:
       artificats-workflow: build.yml
     secrets:
-      artifacts-dowload-token: ${{ secrets.PUBLIC_PAT }}
+      token: ${{ secrets.GITHUB_TOKEN }}
       nuget-api-token: ${{ secrets.NUGET_API_TOKEN }}
-      

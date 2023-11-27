@@ -11,4 +11,4 @@ jobs:
       artificats-workflow: build.yml
     secrets:
       artifacts-dowload-token: ${{ secrets.PUBLIC_PAT }}
-      github-release-token: ${{ secrets.GITUB_RELEASE }}
+      github-release-token: ${{ secrets.RELEASE_TOKEN }}

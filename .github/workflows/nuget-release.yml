@@ -7,6 +7,8 @@ jobs:
     uses: koliva8245/github.workflows/.github/workflows/nuget-release.yml@main
     with:
       artificats-workflow: build.yml
+      nuget-publish-env: Nuget Publish
+      nuget-publish-url: https://www.nuget.org/packages/Heroes.MpqTool/
     secrets:
       token: ${{ secrets.GITHUB_TOKEN }}
       nuget-api-token: ${{ secrets.NUGET_API_TOKEN }}

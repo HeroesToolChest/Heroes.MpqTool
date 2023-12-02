@@ -9,4 +9,8 @@ jobs:
       dotnet-sdk: 8.0.X
       main-project: Heroes.MpqTool/Heroes.MpqTool.csproj
       artifact-name-prefix: Heroes.MpqTool
-      
+    secrets:
+      es-username: ${{ secrets.ES_USERNAME }}
+      es-password: ${{ secrets.ES_PASSWORD }}
+      es-credential-id: ${{ secrets.ES_CREDENTIAL_ID }}
+      es-totp-secret: ${{ secrets.ES_TOTP_SECRET }}    

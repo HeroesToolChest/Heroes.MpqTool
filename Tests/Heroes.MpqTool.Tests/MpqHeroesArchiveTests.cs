@@ -1,7 +1,4 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Heroes.MpqTool;
-
-namespace Heroes.MpqTool.Tests;
+﻿namespace Heroes.MpqTool.Tests;
 
 [TestClass]
 public class MpqHeroesArchiveTests

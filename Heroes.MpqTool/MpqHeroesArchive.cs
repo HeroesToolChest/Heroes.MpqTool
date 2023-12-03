@@ -1,6 +1,5 @@
 ﻿using Ionic.BZip2;
 using Ionic.Zlib;
-using System;
 
 namespace Heroes.MpqTool;
 

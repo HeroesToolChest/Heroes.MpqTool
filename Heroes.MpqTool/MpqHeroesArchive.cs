@@ -1,5 +1,6 @@
 ﻿using Ionic.BZip2;
 using Ionic.Zlib;
+using System;
 
 namespace Heroes.MpqTool;
 
@@ -8,7 +9,10 @@ namespace Heroes.MpqTool;
 /// </summary>
 public class MpqHeroesArchive : IDisposable
 {
-    internal const int HeaderSize = 0x100;
+    /// <summary>
+    /// Gets the size of the header.
+    /// </summary>
+    public const int HeaderSize = 0x100;
 
     private const int MaxStackAllocLimit = 2048;
 
@@ -76,6 +80,34 @@ public class MpqHeroesArchive : IDisposable
     /// Gets an array of the archives entries.
     /// </summary>
     public MpqHeroesArchiveEntry[] MpqArchiveEntries => _mpqArchiveEntries;
+
+    /// <summary>
+    /// Gets the headers in bytes.
+    /// </summary>
+    /// <param name="size">The number of bytes of the header.</param>
+    /// <returns>A read-only span of bytes.</returns>
+    public Stream GetHeaderBytes(int size = HeaderSize)
+    {
+        Span<byte> data = new byte[size];
+        _archiveStream.Position = 0;
+        _archiveStream.Read(data);
+
+        MemoryStream stream = new();
+        stream.Write(data);
+        stream.Position = 0;
+
+        return stream;
+    }
+
+    /// <summary>
+    /// Gets the headers in bytes.
+    /// </summary>
+    /// <param name="buffer">A span to read in the bytes.</param>
+    public void GetHeaderBytes(Span<byte> buffer)
+    {
+        _archiveStream.Position = 0;
+        _archiveStream.Read(buffer);
+    }
 
     /// <summary>
     /// Gets a <see cref="MpqHeroesArchiveEntry"/> by its file name.

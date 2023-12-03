@@ -41,6 +41,24 @@ public ref struct BitReader
     public EndianType EndianType { get; set; }
 
     /// <summary>
+    /// Reads a string from the given bytes, accounting for the endianness.
+    /// </summary>
+    /// <param name="bytes">A span of bytes to read from.</param>
+    /// <returns>A string.</returns>
+    public static string GetUTF8StringFromBytes(Span<byte> bytes)
+    {
+        bytes = bytes.Trim((byte)0);
+
+        if (bytes.Length == 0)
+            return string.Empty;
+
+        if (BitConverter.IsLittleEndian)
+            bytes.Reverse();
+
+        return Encoding.UTF8.GetString(bytes);
+    }
+
+    /// <summary>
     /// Reads up to 32 bits from the buffer as an uint.
     /// </summary>
     /// <param name="numberOfBits">The number of bits to read.</param>
@@ -501,20 +519,6 @@ public ref struct BitReader
             Index--;
             _currentByte = _buffer[Index];
         }
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static string GetUTF8StringFromBytes(Span<byte> bytes)
-    {
-        bytes = bytes.Trim((byte)0);
-
-        if (bytes.Length == 0)
-            return string.Empty;
-
-        if (BitConverter.IsLittleEndian)
-            bytes.Reverse();
-
-        return Encoding.UTF8.GetString(bytes);
     }
 
     private uint GetValueFromBits(int numberOfBits)

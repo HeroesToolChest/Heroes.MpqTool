@@ -1,4 +1,7 @@
-﻿namespace Heroes.MpqTool.Tests;
+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Heroes.MpqTool;
+
+namespace Heroes.MpqTool.Tests;
 
 [TestClass]
 public class MpqHeroesArchiveTests
@@ -158,5 +161,52 @@ public class MpqHeroesArchiveTests
 
         // assert
         Assert.IsFalse(result);
+    }
+
+    [TestMethod]
+    public void GetHeaderBytes_ForReplayFile_ReturnsStream()
+    {
+        // arrange
+        using MpqHeroesArchive mpqHeroesArchive = MpqHeroesFile.Open(Path.Join(_mpqDirectory, _replayFile2));
+
+        // act
+        Stream stream = mpqHeroesArchive.GetHeaderBytes();
+
+        // assert
+        Assert.AreEqual(256, stream.Length);
+        Assert.AreEqual(0, stream.Position);
+
+        Assert.AreEqual(77, stream.ReadByte());
+    }
+
+    [TestMethod]
+    public void GetHeaderBytes_ForS2maFile_ReturnsStream()
+    {
+        // arrange
+        using MpqHeroesArchive mpqHeroesArchive = MpqHeroesFile.Open(Path.Join(_mpqDirectory, _s2maFile1));
+
+        // act
+        Stream stream = mpqHeroesArchive.GetHeaderBytes();
+
+        // assert
+        Assert.AreEqual(256, stream.Length);
+        Assert.AreEqual(0, stream.Position);
+
+        Assert.AreEqual(77, stream.ReadByte());
+    }
+
+    [TestMethod]
+    public void GetHeaderBytes_ForReplayFile_GetsReadIntoBuffer()
+    {
+        // arrange
+        using MpqHeroesArchive mpqHeroesArchive = MpqHeroesFile.Open(Path.Join(_mpqDirectory, _replayFile2));
+
+        // act
+        Span<byte> buffer = stackalloc byte[256];
+        mpqHeroesArchive.GetHeaderBytes(buffer);
+
+        // assert
+        Assert.AreEqual(256, buffer.Length);
+        Assert.AreEqual(77, buffer[0]);
     }
 }

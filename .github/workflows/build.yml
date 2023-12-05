@@ -9,7 +9,7 @@ jobs:
       dotnet-sdk: 8.0.X
       main-project: Heroes.MpqTool/Heroes.MpqTool.csproj
       artifact-name-prefix: Heroes.MpqTool
-      is-tool: 'false'
+      is-tool: false
     secrets:
       es-username: ${{ secrets.ES_USERNAME }}
       es-password: ${{ secrets.ES_PASSWORD }}

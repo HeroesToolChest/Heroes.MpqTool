@@ -34,4 +34,10 @@ public class MpqHeroesFileTests
         Assert.AreEqual("Objects", mpqHeroesArchive.MpqArchiveEntries[5].FileName);
         Assert.AreEqual("MapInfo", mpqHeroesArchive.MpqArchiveEntries[6].FileName);
     }
+
+    [TestMethod]
+    public void Open_EmtpyFileName_ThrowsException()
+    {
+        Assert.ThrowsException<ArgumentException>(() => MpqHeroesFile.Open(string.Empty));
+    }
 }

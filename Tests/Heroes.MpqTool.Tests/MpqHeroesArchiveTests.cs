@@ -161,6 +161,19 @@ public class MpqHeroesArchiveTests
     }
 
     [TestMethod]
+    public void FileEntryExists_EmptyFileName_ReturnsFalse()
+    {
+        // arrange
+        using MpqHeroesArchive mpqHeroesArchive = MpqHeroesFile.Open(Path.Join(_mpqDirectory, _s2maFile1));
+
+        // act
+        bool result = mpqHeroesArchive.FileEntryExists(string.Empty);
+
+        // assert
+        Assert.IsFalse(result);
+    }
+
+    [TestMethod]
     public void GetHeaderBytes_ForReplayFile_ReturnsStream()
     {
         // arrange
@@ -205,5 +218,18 @@ public class MpqHeroesArchiveTests
         // assert
         Assert.AreEqual(256, buffer.Length);
         Assert.AreEqual(77, buffer[0]);
+    }
+
+    [TestMethod]
+    public void GetHeaderBytes_InvalidSize_ThrowsException()
+    {
+        // arrange
+        using MpqHeroesArchive mpqHeroesArchive = MpqHeroesFile.Open(Path.Join(_mpqDirectory, _replayFile2));
+
+        // act
+        object? Action() => mpqHeroesArchive.GetHeaderBytes(0);
+
+        // assert
+        Assert.ThrowsException<ArgumentOutOfRangeException>(Action);
     }
 }

@@ -13,10 +13,14 @@ public static class MpqHeroesFile
     /// <exception cref="ArgumentException"><paramref name="fileName"/> cannot be <see langword="null"/> or empty.</exception>
     public static MpqHeroesArchive Open(string fileName)
     {
+#if NET8_0_OR_GREATER
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
+#else
         if (string.IsNullOrWhiteSpace(fileName))
         {
             throw new ArgumentException("Argument cannot be null or empty", nameof(fileName));
         }
+#endif
 
         FileStream fileStream = new(fileName, FileMode.Open, FileAccess.Read, FileShare.Read, 0x1000, false);
 

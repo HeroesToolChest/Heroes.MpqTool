@@ -85,8 +85,16 @@ public class MpqHeroesArchive : IDisposable
     /// </summary>
     /// <param name="size">The number of bytes of the header.</param>
     /// <returns>A read-only span of bytes.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="size"/> cannot be less than 1.</exception>
     public Stream GetHeaderBytes(int size = HeaderSize)
     {
+#if NET8_0_OR_GREATER
+        ArgumentOutOfRangeException.ThrowIfLessThan(size, 1);
+#else
+        if (size < 1)
+            throw new ArgumentOutOfRangeException(nameof(size));
+#endif
+
         Span<byte> data = new byte[size];
         _archiveStream.Position = 0;
         _archiveStream.Read(data);

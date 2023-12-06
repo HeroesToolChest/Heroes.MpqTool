@@ -6,7 +6,7 @@ public class BitReaderTests
     [TestMethod]
     public void ReadBitsTest()
     {
-        Span<byte> buffer = [8, 130, 67, 58];
+        Span<byte> buffer = new byte[4] { 8, 130, 67, 58 };
 
         BitReader bitReader = new(buffer, EndianType.BigEndian);
 
@@ -18,7 +18,7 @@ public class BitReaderTests
     [TestMethod]
     public void ReadsBitsCompareBigEndianTest()
     {
-        Span<byte> buffer = [8, 130, 67, 58];
+        Span<byte> buffer = new byte[4] { 8, 130, 67, 58 };
         BitReader bitReader = new(buffer, EndianType.BigEndian);
         int resultBig = bitReader.ReadInt32Aligned();
 
@@ -31,7 +31,7 @@ public class BitReaderTests
     [TestMethod]
     public void ReadsBitsCompareLittleEndianTest()
     {
-        Span<byte> buffer = [8, 130, 67, 58];
+        Span<byte> buffer = new byte[4] { 8, 130, 67, 58 };
         BitReader bitReader = new(buffer, EndianType.LittleEndian);
         uint resultLittle = (uint)bitReader.ReadInt32Aligned();
 
@@ -44,7 +44,7 @@ public class BitReaderTests
     [TestMethod]
     public void BitReversementTest()
     {
-        Span<byte> buffer = [8, 130, 67, 58, 92, 80, 114, 102, 0, 1, 12, 13, 115, 23, 28, 56, 47, 35];
+        Span<byte> buffer = new byte[18] { 8, 130, 67, 58, 92, 80, 114, 102, 0, 1, 12, 13, 115, 23, 28, 56, 47, 35 };
 
         for (int bitsToRead = 1; bitsToRead < 33; bitsToRead++)
         {
@@ -62,7 +62,7 @@ public class BitReaderTests
     [TestMethod]
     public void BitReversementWithStartingOffsetTest()
     {
-        Span<byte> buffer = [8, 130, 67, 58, 92, 80, 114, 102, 0, 1, 12, 13, 115, 23, 28, 56, 47, 35];
+        Span<byte> buffer = new byte[18] { 8, 130, 67, 58, 92, 80, 114, 102, 0, 1, 12, 13, 115, 23, 28, 56, 47, 35 };
 
         for (int offset = 1; offset < 32; offset++)
         {
@@ -144,7 +144,7 @@ public class BitReaderTests
     [TestMethod]
     public void ReadBlobAsString()
     {
-        Span<byte> buffer = [4, 115, 50, 109, 118];
+        Span<byte> buffer = new byte[5] { 4, 115, 50, 109, 118 };
 
         BitReader bitReader = new(buffer, EndianType.BigEndian);
 
@@ -156,7 +156,7 @@ public class BitReaderTests
     [TestMethod]
     public void ReadStringFromUnalignedBytesAsBigEndian()
     {
-        Span<byte> buffer = [108, 211, 66, 162, 55];
+        Span<byte> buffer = new byte[5] { 108, 211, 66, 162, 55 };
 
         BitReader bitReader = new(buffer, EndianType.BigEndian);
 
@@ -170,7 +170,7 @@ public class BitReaderTests
     [TestMethod]
     public void ReadStringFromUnalignedBytesAsLittleEndian()
     {
-        Span<byte> buffer = [108, 211, 66, 162, 55];
+        Span<byte> buffer = new byte[5] { 108, 211, 66, 162, 55 };
 
         BitReader bitReader = new(buffer, EndianType.LittleEndian);
 

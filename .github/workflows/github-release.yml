@@ -8,7 +8,7 @@ jobs:
     permissions:
       contents: write
     with:
-      title: 'Heroes MpqTool'
+      title: 'Heroes Mpq Tool'
       app-name: Heroes.MpqTool
       artificats-workflow: build.yml
       github-release-env: Github Release

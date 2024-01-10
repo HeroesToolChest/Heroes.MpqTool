@@ -448,6 +448,25 @@ public class MpqHeroesArchive : IDisposable
         }
     }
 
+    private static string GetFileName(ReadOnlySpan<byte> source, int startIndex, ref int index, byte charByte)
+    {
+        Span<char> data = stackalloc char[index - startIndex];
+
+        Encoding.UTF8.GetChars(source[startIndex..index], data);
+
+        // if it's a \r, check one ahead for a \n
+        if (charByte == 13 && index < source.Length)
+        {
+            byte nByte = source[index + 1];
+            if (nByte == 10)
+            {
+                index++;
+            }
+        }
+
+        return data.ToString();
+    }
+
     private void AddListfileFileNames()
     {
         if (!AddFileName("(listfile)"))
@@ -461,7 +480,6 @@ public class MpqHeroesArchive : IDisposable
         AddFileNames(buffer);
     }
 
-    [SuppressMessage("Reliability", "CA2014:Do not use stackalloc in loops", Justification = "is a finite loop")]
     private void AddFileNames(ReadOnlySpan<byte> source)
     {
         int startIndex = 0;
@@ -474,23 +492,11 @@ public class MpqHeroesArchive : IDisposable
             // \n - UNIX   \r\n - DOS   \r - Mac
             if (charByte == 10 || charByte == 13)
             {
-                Span<char> data = stackalloc char[index - startIndex];
-
-                Encoding.UTF8.GetChars(source[startIndex..index], data);
-
-                // if it's a \r, check one ahead for a \n
-                if (charByte == 13 && index < source.Length)
-                {
-                    byte nByte = source[index + 1];
-                    if (nByte == 10)
-                    {
-                        index++;
-                    }
-                }
+                string fileName = GetFileName(source, startIndex, ref index, charByte);
 
                 index++;
 
-                AddFileName(data.ToString());
+                AddFileName(fileName);
                 startIndex = index;
             }
 

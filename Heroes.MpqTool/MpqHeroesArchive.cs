@@ -1,5 +1,5 @@
 ﻿using Ionic.BZip2;
-using Ionic.Zlib;
+using System.IO.Compression;
 
 namespace Heroes.MpqTool;
 
@@ -462,7 +462,7 @@ public class MpqHeroesArchive : IDisposable
         memoryStream.Write(buffer[1..]);
         memoryStream.Position = 0;
 
-        using ZlibStream stream = new(memoryStream, CompressionMode.Decompress);
+        using ZLibStream stream = new(memoryStream, CompressionMode.Decompress, false);
 
         stream.Read(buffer);
     }

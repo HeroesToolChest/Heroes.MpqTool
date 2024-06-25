@@ -1,4 +1,4 @@
-﻿using Ionic.BZip2;
+﻿using Heroes.MpqTool.BZip2;
 using System.IO.Compression;
 
 namespace Heroes.MpqTool;

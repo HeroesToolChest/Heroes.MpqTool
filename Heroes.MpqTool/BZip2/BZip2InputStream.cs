@@ -3,6 +3,7 @@
 
 using System;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 
 namespace Heroes.MpqTool.BZip2;
 
@@ -705,7 +706,7 @@ internal class BZip2InputStream : Stream
             }
 
             pos[0] = tmp;
-            s.SelectorList.Add(tmp);
+            s.AddToSelectorList(i, tmp);
         }
     }
 
@@ -716,6 +717,10 @@ internal class BZip2InputStream : Stream
     {
         DecompressionState s = _data!;
         char[][] len = s.TempCharArray2d;
+
+        s.GLimitList.Clear();
+        s.GBaseList.Clear();
+        s.GPermList.Clear();
 
         for (int t = 0; t < nGroups; t++)
         {
@@ -731,6 +736,7 @@ internal class BZip2InputStream : Stream
                 if (lent < minLen)
                     minLen = lent;
             }
+
 
             s.GLimitList.Add(new int[Math.Max(maxLen, BZip2.MaxCodeLength)]);
             s.GBaseList.Add(new List<int>());
@@ -804,16 +810,7 @@ internal class BZip2InputStream : Stream
                     if (groupPos == 0)
                     {
                         groupPos = BZip2.GSize - 1;
-
-                        if (++groupNo >= s.SelectorList.Count)
-                        {
-                            for (int j = s.SelectorList.Count; j <= groupNo; j++)
-                            {
-                                s.SelectorList.Add(0);
-                            }
-                        }
-
-                        zt = s.SelectorList[groupNo] & 0xff;
+                        zt = s.SelectorList[++groupNo] & 0xff;
                         base_zt = s.GBaseList[zt];
                         limit_zt = s.GLimitList[zt];
                         perm_zt = s.GPermList[zt];
@@ -877,7 +874,8 @@ internal class BZip2InputStream : Stream
                 while (es-- >= 0)
                 {
                     ++lastShadow;
-                    s.Ll8List.Add(ch);
+
+                    s.AddToLl8List(lastShadow, ch);
                 }
 
                 if (lastShadow >= limitLast)
@@ -890,7 +888,8 @@ internal class BZip2InputStream : Stream
 
                 byte tmp = yy[nextSym - 1];
                 s.Unzftab[s.SeqToUnseq[tmp] & 0xff]++;
-                s.Ll8List.Add(s.SeqToUnseq[tmp]);
+
+                s.AddToLl8List(lastShadow, s.SeqToUnseq[tmp]);
 
                 /*
                  * This loop is hammered during decompression, hence avoid
@@ -914,16 +913,7 @@ internal class BZip2InputStream : Stream
                 if (groupPos == 0)
                 {
                     groupPos = BZip2.GSize - 1;
-
-                    if (++groupNo >= s.SelectorList.Count)
-                    {
-                        for (int j = s.SelectorList.Count; j <= groupNo; j++)
-                        {
-                            s.SelectorList.Add(0);
-                        }
-                    }
-
-                    zt = s.SelectorList[groupNo] & 0xff;
+                    zt = s.SelectorList[++groupNo] & 0xff;
                     base_zt = s.GBaseList[zt];
                     limit_zt = s.GLimitList[zt];
                     perm_zt = s.GPermList[zt];
@@ -1312,6 +1302,34 @@ internal class BZip2InputStream : Stream
             }
 
             return ttShadow;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void AddToLl8List(int currentCount, byte ch)
+        {
+            if (currentCount >= Ll8List.Count)
+            {
+                for (int j = Ll8List.Count; j <= currentCount; j++)
+                {
+                    Ll8List.Add(0);
+                }
+            }
+
+            Ll8List[currentCount] = ch;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void AddToSelectorList(int currentCount, byte ch)
+        {
+            if (currentCount >= SelectorList.Count)
+            {
+                for (int j = SelectorList.Count; j <= currentCount; j++)
+                {
+                    SelectorList.Add(0);
+                }
+            }
+
+            SelectorList[currentCount] = ch;
         }
     }
 }

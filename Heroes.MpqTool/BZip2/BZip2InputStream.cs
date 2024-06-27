@@ -425,16 +425,15 @@ internal class BZip2InputStream : Stream
         }
     }
 
-    private void MakeMaps()
+    private void MakeMaps(Span<bool> inUseSpan)
     {
-        bool[] inUse = _data!.InUse;
-        byte[] seqToUnseq = _data.SeqToUnseq;
+        byte[] seqToUnseq = _data!.SeqToUnseq;
 
         int n = 0;
 
         for (int i = 0; i < 256; i++)
         {
-            if (inUse[i])
+            if (inUseSpan[i])
                 seqToUnseq[n++] = (byte)i;
         }
 
@@ -596,7 +595,6 @@ internal class BZip2InputStream : Stream
     private void RecvDecodingTables()
     {
         DecompressionState s = _data!;
-        bool[] inUse = s.InUse;
         byte[] pos = s.RecvDecodingTables_pos;
 
         int inUse16 = 0;
@@ -610,9 +608,11 @@ internal class BZip2InputStream : Stream
             }
         }
 
+        Span<bool> inUseSpan = stackalloc bool[256];
+
         for (int i = 256; --i >= 0;)
         {
-            inUse[i] = false;
+            inUseSpan[i] = false;
         }
 
         for (int i = 0; i < 16; i++)
@@ -624,13 +624,13 @@ internal class BZip2InputStream : Stream
                 {
                     if (BsGetBit())
                     {
-                        inUse[i16 + j] = true;
+                        inUseSpan[i16 + j] = true;
                     }
                 }
             }
         }
 
-        MakeMaps();
+        MakeMaps(inUseSpan);
         int alphaSize = _nInUse + 2;
 
         /* Now the selectors */
@@ -1230,9 +1230,6 @@ internal class BZip2InputStream : Stream
             Ll8List = new();
         }
 
-        // (with blockSize 900k)
-        public bool[] InUse { get; } = new bool[256];
-
         public byte[] SeqToUnseq { get; } = new byte[256]; // 256 byte
 
         public List<byte> SelectorList { get; } = new();
@@ -1257,7 +1254,7 @@ internal class BZip2InputStream : Stream
 
         public byte[] RecvDecodingTables_pos { get; }
 
-        public int[]? Tt { get; private set; } // 3600000 byte
+        public int[]? Tt { get; private set; }
 
         public List<byte> Ll8List { get; }
 

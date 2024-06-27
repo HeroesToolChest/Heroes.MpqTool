@@ -72,32 +72,6 @@ internal class BZip2InputStream : Stream
     /// <param name='leaveOpen'>
     ///  Whether to leave the input stream open, when the BZip2InputStream closes.
     /// </param>
-    ///
-    /// <example>
-    ///
-    ///   This example reads a bzip2-compressed file, decompresses it,
-    ///   and writes the decompressed data into a newly created file.
-    ///
-    ///   <code>
-    ///   var fname = "logfile.log.bz2";
-    ///   using (var fs = File.OpenRead(fname))
-    ///   {
-    ///       using (var decompressor = new Ionic.BZip2.BZip2InputStream(fs))
-    ///       {
-    ///           var outFname = fname + ".decompressed";
-    ///           using (var output = File.Create(outFname))
-    ///           {
-    ///               byte[] buffer = new byte[2048];
-    ///               int n;
-    ///               while ((n = decompressor.Read(buffer, 0, buffer.Length)) > 0)
-    ///               {
-    ///                   output.Write(buffer, 0, n);
-    ///               }
-    ///           }
-    ///       }
-    ///   }
-    ///   </code>
-    /// </example>
     public BZip2InputStream(Stream input, bool leaveOpen)
         : base()
     {
@@ -773,10 +747,10 @@ internal class BZip2InputStream : Stream
 
         int groupNo = 0;
         int groupPos = BZip2.GSize - 1;
-        int eob = this._nInUse + 1;
+        int eob = _nInUse + 1;
         int nextSym = GetAndMoveToFrontDecode0(0);
-        int bsBuffShadow = this._bsBuff;
-        int bsLiveShadow = this._bsLive;
+        int bsBuffShadow = _bsBuff;
+        int bsLiveShadow = _bsLive;
         int lastShadow = -1;
         int zt = s.Selector[groupNo] & 0xff;
         int[] base_zt = s.GBase[zt];
@@ -825,7 +799,7 @@ internal class BZip2InputStream : Stream
                     // int zvec = GetBits(zn);
                     while (bsLiveShadow < zn)
                     {
-                        int thech = this._input.ReadByte();
+                        int thech = _input.ReadByte();
                         if (thech >= 0)
                         {
                             bsBuffShadow = (bsBuffShadow << 8) | thech;
@@ -846,7 +820,7 @@ internal class BZip2InputStream : Stream
                         zn++;
                         while (bsLiveShadow < 1)
                         {
-                            int thech = this._input.ReadByte();
+                            int thech = _input.ReadByte();
                             if (thech >= 0)
                             {
                                 bsBuffShadow = (bsBuffShadow << 8) | thech;
@@ -871,7 +845,8 @@ internal class BZip2InputStream : Stream
 
                 while (es-- >= 0)
                 {
-                    s.Ll8[++lastShadow] = ch;
+                    ++lastShadow;
+                    s.Ll8List.Add(ch);
                 }
 
                 if (lastShadow >= limitLast)
@@ -884,7 +859,7 @@ internal class BZip2InputStream : Stream
 
                 byte tmp = yy[nextSym - 1];
                 s.Unzftab[s.SeqToUnseq[tmp] & 0xff]++;
-                s.Ll8[lastShadow] = s.SeqToUnseq[tmp];
+                s.Ll8List.Add(s.SeqToUnseq[tmp]);
 
                 /*
                  * This loop is hammered during decompression, hence avoid
@@ -925,7 +900,7 @@ internal class BZip2InputStream : Stream
                 // int zvec = GetBits(zn);
                 while (bsLiveShadow < zn)
                 {
-                    int thech = this._input.ReadByte();
+                    int thech = _input.ReadByte();
                     if (thech >= 0)
                     {
                         bsBuffShadow = (bsBuffShadow << 8) | thech;
@@ -1052,7 +1027,7 @@ internal class BZip2InputStream : Stream
         int lastShadow;
         for (i = 0, lastShadow = _last; i <= lastShadow; i++)
         {
-            tt[s.Cftab[s.Ll8[i] & 0xff]++] = i;
+            tt[s.Cftab[s.Ll8List[i] & 0xff]++] = i;
         }
 
         if ((_origPtr < 0) || (_origPtr >= tt.Length))
@@ -1080,7 +1055,7 @@ internal class BZip2InputStream : Stream
         if (_suI2 <= _last)
         {
             _suChPrev = _suCh2;
-            int su_ch2Shadow = _data!.Ll8[_suTPos] & 0xff;
+            int su_ch2Shadow = _data!.Ll8List[_suTPos] & 0xff;
             _suTPos = _data.Tt![_suTPos];
             if (_suRNToGo == 0)
             {
@@ -1114,7 +1089,7 @@ internal class BZip2InputStream : Stream
         if (_suI2 <= _last)
         {
             _suChPrev = _suCh2;
-            int su_ch2Shadow = _data!.Ll8[_suTPos] & 0xff;
+            int su_ch2Shadow = _data!.Ll8List[_suTPos] & 0xff;
             _suCh2 = su_ch2Shadow;
             _suTPos = _data.Tt![_suTPos];
             _suI2++;
@@ -1142,7 +1117,7 @@ internal class BZip2InputStream : Stream
         }
         else if (++_suCount >= 4)
         {
-            _suZ = (char)(_data!.Ll8[_suTPos] & 0xff);
+            _suZ = (char)(_data!.Ll8List[_suTPos] & 0xff);
             _suTPos = _data.Tt![_suTPos];
             if (_suRNToGo == 0)
             {
@@ -1199,7 +1174,7 @@ internal class BZip2InputStream : Stream
         }
         else if (++_suCount >= 4)
         {
-            _suZ = (char)(_data!.Ll8[_suTPos] & 0xff);
+            _suZ = (char)(_data!.Ll8List[_suTPos] & 0xff);
             _suTPos = _data.Tt![_suTPos];
             _suJ2 = 0;
             SetupNoRandPartC();
@@ -1244,7 +1219,7 @@ internal class BZip2InputStream : Stream
             TempCharArray2d = BZip2.InitRectangularArray<char>(BZip2.NGroups, BZip2.MaxAlphaSize);
             RecvDecodingTables_pos = new byte[BZip2.NGroups]; // 6 byte
 
-            Ll8 = new byte[blockSize100k * BZip2.BlockSizeMultiple];
+            Ll8List = new();
         }
 
         // (with blockSize 900k)
@@ -1280,7 +1255,7 @@ internal class BZip2InputStream : Stream
 
         public int[]? Tt { get; private set; } // 3600000 byte
 
-        public byte[] Ll8 { get; } // 900000 byte
+        public List<byte> Ll8List { get; }
 
         /**
          * Initializes the tt array.

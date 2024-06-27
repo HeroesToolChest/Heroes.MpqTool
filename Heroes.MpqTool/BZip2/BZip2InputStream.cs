@@ -637,37 +637,7 @@ internal class BZip2InputStream : Stream
         int nGroups = GetBits(3);
         int nSelectors = GetBits(15);
 
-        for (int i = 0; i < nSelectors; i++)
-        {
-            int j = 0;
-            while (BsGetBit())
-            {
-                j++;
-            }
-
-            s.SelectorMtf[i] = (byte)j;
-        }
-
-        /* Undo the MTF values for the selectors. */
-        for (int v = nGroups; --v >= 0;)
-        {
-            pos[v] = (byte)v;
-        }
-
-        for (int i = 0; i < nSelectors; i++)
-        {
-            int v = s.SelectorMtf[i];
-            byte tmp = pos[v];
-            while (v > 0)
-            {
-                // nearly all times v is zero, 4 in most other cases
-                pos[v] = pos[v - 1];
-                v--;
-            }
-
-            pos[0] = tmp;
-            s.Selector[i] = tmp;
-        }
+        SelectorMtf(s, pos, nGroups, nSelectors);
 
         char[][] len = s.TempCharArray2d;
 
@@ -689,6 +659,43 @@ internal class BZip2InputStream : Stream
 
         // finally create the Huffman tables
         CreateHuffmanDecodingTables(alphaSize, nGroups);
+    }
+
+    private void SelectorMtf(DecompressionState s, byte[] pos, int nGroups, int nSelectors)
+    {
+        Span<byte> selectorMtfSpan = stackalloc byte[nSelectors];
+
+        for (int i = 0; i < nSelectors; i++)
+        {
+            int j = 0;
+            while (BsGetBit())
+            {
+                j++;
+            }
+
+            selectorMtfSpan[i] = (byte)j;
+        }
+
+        /* Undo the MTF values for the selectors. */
+        for (int v = nGroups; --v >= 0;)
+        {
+            pos[v] = (byte)v;
+        }
+
+        for (int i = 0; i < nSelectors; i++)
+        {
+            int v = selectorMtfSpan[i];
+            byte tmp = pos[v];
+            while (v > 0)
+            {
+                // nearly all times v is zero, 4 in most other cases
+                pos[v] = pos[v - 1];
+                v--;
+            }
+
+            pos[0] = tmp;
+            s.SelectorList.Add(tmp);
+        }
     }
 
     /**
@@ -752,7 +759,7 @@ internal class BZip2InputStream : Stream
         int bsBuffShadow = _bsBuff;
         int bsLiveShadow = _bsLive;
         int lastShadow = -1;
-        int zt = s.Selector[groupNo] & 0xff;
+        int zt = s.SelectorList[groupNo] & 0xff;
         int[] base_zt = s.GBase[zt];
         int[] limit_zt = s.GLimit[zt];
         int[] perm_zt = s.GPerm[zt];
@@ -782,7 +789,7 @@ internal class BZip2InputStream : Stream
                     if (groupPos == 0)
                     {
                         groupPos = BZip2.GSize - 1;
-                        zt = s.Selector[++groupNo] & 0xff;
+                        zt = s.SelectorList[++groupNo] & 0xff;
                         base_zt = s.GBase[zt];
                         limit_zt = s.GLimit[zt];
                         perm_zt = s.GPerm[zt];
@@ -883,7 +890,7 @@ internal class BZip2InputStream : Stream
                 if (groupPos == 0)
                 {
                     groupPos = BZip2.GSize - 1;
-                    zt = s.Selector[++groupNo] & 0xff;
+                    zt = s.SelectorList[++groupNo] & 0xff;
                     base_zt = s.GBase[zt];
                     limit_zt = s.GLimit[zt];
                     perm_zt = s.GPerm[zt];
@@ -951,7 +958,7 @@ internal class BZip2InputStream : Stream
     private int GetAndMoveToFrontDecode0(int groupNo)
     {
         DecompressionState s = _data!;
-        int zt = s.Selector[groupNo] & 0xff;
+        int zt = s.SelectorList[groupNo] & 0xff;
         int[] limit_zt = s.GLimit[zt];
         int zn = s.GMinlen[zt];
         int zvec = GetBits(zn);
@@ -1004,30 +1011,32 @@ internal class BZip2InputStream : Stream
         }
 
         /* Actually generate cftab. */
-        s.Cftab[0] = 0;
-        for (i = 1; i <= 256; i++) s.Cftab[i] = s.Unzftab[i - 1];
-        for (i = 1; i <= 256; i++) s.Cftab[i] += s.Cftab[i - 1];
+        Span<int> cftabSpan = stackalloc int[257];
+
+        cftabSpan[0] = 0;
+        for (i = 1; i <= 256; i++) cftabSpan[i] = s.Unzftab[i - 1];
+        for (i = 1; i <= 256; i++) cftabSpan[i] += cftabSpan[i - 1];
 
         /* Check: cftab entries in range. */
         for (i = 0; i <= 256; i++)
         {
-            if (s.Cftab[i] < 0 || s.Cftab[i] > _last + 1)
+            if (cftabSpan[i] < 0 || cftabSpan[i] > _last + 1)
             {
-                throw new Exception(string.Format("BZ_DATA_ERROR: cftab[{0}]={1} last={2}", i, s.Cftab[i], _last));
+                throw new Exception(string.Format("BZ_DATA_ERROR: cftab[{0}]={1} last={2}", i, cftabSpan[i], _last));
             }
         }
 
         /* Check: cftab entries non-descending. */
         for (i = 1; i <= 256; i++)
         {
-            if (s.Cftab[i - 1] > s.Cftab[i])
+            if (cftabSpan[i - 1] > cftabSpan[i])
                 throw new Exception("BZ_DATA_ERROR");
         }
 
         int lastShadow;
         for (i = 0, lastShadow = _last; i <= lastShadow; i++)
         {
-            tt[s.Cftab[s.Ll8List[i] & 0xff]++] = i;
+            tt[cftabSpan[s.Ll8List[i] & 0xff]++] = i;
         }
 
         if ((_origPtr < 0) || (_origPtr >= tt.Length))
@@ -1214,7 +1223,6 @@ internal class BZip2InputStream : Stream
             GPerm = BZip2.InitRectangularArray<int>(BZip2.NGroups, BZip2.MaxAlphaSize);
             GMinlen = new int[BZip2.NGroups]; // 24 byte
 
-            Cftab = new int[257]; // 1028 byte
             GetAndMoveToFrontDecode_yy = new byte[256]; // 512 byte
             TempCharArray2d = BZip2.InitRectangularArray<char>(BZip2.NGroups, BZip2.MaxAlphaSize);
             RecvDecodingTables_pos = new byte[BZip2.NGroups]; // 6 byte
@@ -1227,9 +1235,7 @@ internal class BZip2InputStream : Stream
 
         public byte[] SeqToUnseq { get; } = new byte[256]; // 256 byte
 
-        public byte[] Selector { get; } = new byte[BZip2.MaxSelectors]; // 18002 byte
-
-        public byte[] SelectorMtf { get; } = new byte[BZip2.MaxSelectors]; // 18002 byte
+        public List<byte> SelectorList { get; } = new();
 
         /**
          * Freq table collected to save a pass over the data during
@@ -1244,8 +1250,6 @@ internal class BZip2InputStream : Stream
         public int[][] GPerm { get; }
 
         public int[] GMinlen { get; }
-
-        public int[] Cftab { get; }
 
         public byte[] GetAndMoveToFrontDecode_yy { get; }
 

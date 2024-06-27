@@ -1,6 +1,9 @@
 // BZip2InputStream.cs
 // Original https://github.com/DinoChiesa/DotNetZip/blob/master/BZip2/BZip2InputStream.cs
 
+using System;
+using System.Reflection;
+
 namespace Heroes.MpqTool.BZip2;
 
 /// <summary>
@@ -380,29 +383,37 @@ internal class BZip2InputStream : Stream
         }
     }
 
-    private static void HbCreateDecodeTables(int[] limit, int[] bbase, int[] perm, char[] length, int minLen, int maxLen, int alphaSize)
+    private static void HbCreateDecodeTables(int[] limit, List<int> bbase, List<int> perm, char[] length, int minLen, int maxLen, int alphaSize)
     {
-        for (int i = minLen, pp = 0; i <= maxLen; i++)
+        for (int i = minLen; i <= maxLen; i++)
         {
             for (int j = 0; j < alphaSize; j++)
             {
                 if (length[j] == i)
                 {
-                    perm[pp++] = j;
+                    perm.Add(j);
                 }
             }
         }
 
-        for (int i = BZip2.MaxCodeLength; --i > 0;)
-        {
-            bbase[i] = 0;
-            limit[i] = 0;
-        }
-
         for (int i = 0; i < alphaSize; i++)
         {
+            int index = length[i] + 1;
+
+            if (index >= bbase.Count)
+            {
+                for (int j = bbase.Count; j <= index; j++)
+                {
+                    bbase.Add(0);
+                }
+            }
+
             bbase[length[i] + 1]++;
         }
+
+        int fill = BZip2.MaxCodeLength - bbase.Count;
+        if (fill > 0)
+            bbase.AddRange(Enumerable.Repeat(0, fill));
 
         for (int i = 1, b = bbase[0]; i < BZip2.MaxCodeLength; i++)
         {
@@ -721,7 +732,11 @@ internal class BZip2InputStream : Stream
                     minLen = lent;
             }
 
-            HbCreateDecodeTables(s.GLimit[t], s.GBase[t], s.GPerm[t], len[t], minLen, maxLen, alphaSize);
+            s.GLimitList.Add(new int[Math.Max(maxLen, BZip2.MaxCodeLength)]);
+            s.GBaseList.Add(new List<int>());
+            s.GPermList.Add(new List<int>());
+
+            HbCreateDecodeTables(s.GLimitList[t], s.GBaseList[t], s.GPermList[t], len[t], minLen, maxLen, alphaSize);
             s.GMinlen[t] = minLen;
         }
     }
@@ -760,9 +775,9 @@ internal class BZip2InputStream : Stream
         int bsLiveShadow = _bsLive;
         int lastShadow = -1;
         int zt = s.SelectorList[groupNo] & 0xff;
-        int[] base_zt = s.GBase[zt];
-        int[] limit_zt = s.GLimit[zt];
-        int[] perm_zt = s.GPerm[zt];
+        List<int> base_zt = s.GBaseList[zt];
+        int[] limit_zt = s.GLimitList[zt];
+        List<int> perm_zt = s.GPermList[zt];
         int minLens_zt = s.GMinlen[zt];
 
         while (nextSym != eob)
@@ -789,10 +804,19 @@ internal class BZip2InputStream : Stream
                     if (groupPos == 0)
                     {
                         groupPos = BZip2.GSize - 1;
-                        zt = s.SelectorList[++groupNo] & 0xff;
-                        base_zt = s.GBase[zt];
-                        limit_zt = s.GLimit[zt];
-                        perm_zt = s.GPerm[zt];
+
+                        if (++groupNo >= s.SelectorList.Count)
+                        {
+                            for (int j = s.SelectorList.Count; j <= groupNo; j++)
+                            {
+                                s.SelectorList.Add(0);
+                            }
+                        }
+
+                        zt = s.SelectorList[groupNo] & 0xff;
+                        base_zt = s.GBaseList[zt];
+                        limit_zt = s.GLimitList[zt];
+                        perm_zt = s.GPermList[zt];
                         minLens_zt = s.GMinlen[zt];
                     }
                     else
@@ -890,10 +914,19 @@ internal class BZip2InputStream : Stream
                 if (groupPos == 0)
                 {
                     groupPos = BZip2.GSize - 1;
-                    zt = s.SelectorList[++groupNo] & 0xff;
-                    base_zt = s.GBase[zt];
-                    limit_zt = s.GLimit[zt];
-                    perm_zt = s.GPerm[zt];
+
+                    if (++groupNo >= s.SelectorList.Count)
+                    {
+                        for (int j = s.SelectorList.Count; j <= groupNo; j++)
+                        {
+                            s.SelectorList.Add(0);
+                        }
+                    }
+
+                    zt = s.SelectorList[groupNo] & 0xff;
+                    base_zt = s.GBaseList[zt];
+                    limit_zt = s.GLimitList[zt];
+                    perm_zt = s.GPermList[zt];
                     minLens_zt = s.GMinlen[zt];
                 }
                 else
@@ -959,7 +992,7 @@ internal class BZip2InputStream : Stream
     {
         DecompressionState s = _data!;
         int zt = s.SelectorList[groupNo] & 0xff;
-        int[] limit_zt = s.GLimit[zt];
+        int[] limit_zt = s.GLimitList[zt];
         int zn = s.GMinlen[zt];
         int zvec = GetBits(zn);
         int bsLiveShadow = _bsLive;
@@ -991,7 +1024,7 @@ internal class BZip2InputStream : Stream
         _bsLive = bsLiveShadow;
         _bsBuff = bsBuffShadow;
 
-        return s.GPerm[zt][zvec - s.GBase[zt][zn]];
+        return s.GPermList[zt][zvec - s.GBaseList[zt][zn]];
     }
 
     private void SetupBlock()
@@ -1218,9 +1251,9 @@ internal class BZip2InputStream : Stream
         {
             Unzftab = new int[256]; // 1024 byte
 
-            GLimit = BZip2.InitRectangularArray<int>(BZip2.NGroups, BZip2.MaxAlphaSize);
-            GBase = BZip2.InitRectangularArray<int>(BZip2.NGroups, BZip2.MaxAlphaSize);
-            GPerm = BZip2.InitRectangularArray<int>(BZip2.NGroups, BZip2.MaxAlphaSize);
+            GLimitList = new();
+            GBaseList = new();
+            GPermList = new();
             GMinlen = new int[BZip2.NGroups]; // 24 byte
 
             GetAndMoveToFrontDecode_yy = new byte[256]; // 512 byte
@@ -1240,11 +1273,11 @@ internal class BZip2InputStream : Stream
          */
         public int[] Unzftab { get; }
 
-        public int[][] GLimit { get; }
+        public List<int[]> GLimitList { get; }
 
-        public int[][] GBase { get; }
+        public List<List<int>> GBaseList { get; }
 
-        public int[][] GPerm { get; }
+        public List<List<int>> GPermList { get; }
 
         public int[] GMinlen { get; }
 

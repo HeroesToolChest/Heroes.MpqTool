@@ -742,7 +742,6 @@ internal class BZip2InputStream : Stream
                     minLen = lent;
             }
 
-
             s.GLimitList.Add(new int[Math.Max(maxLen, BZip2.MaxCodeLength)]);
             s.GBaseList.Add(new List<int>());
             s.GPermList.Add(new List<int>());

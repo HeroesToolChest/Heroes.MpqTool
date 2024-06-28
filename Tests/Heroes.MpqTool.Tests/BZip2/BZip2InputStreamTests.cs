@@ -209,7 +209,7 @@ I have a dream that one day every valley shall be exalted, and every hill and mo
     {
         string decompressedFname = "ThisWillNotWork.txt";
 
-        using Stream input = File.OpenRead(Path.Join(Directory.GetCurrentDirectory(), "Heroes.MpqTool.Tests.exe")),
+        using Stream input = File.OpenRead(Path.Join(Directory.GetCurrentDirectory(), "Heroes.MpqTool.Tests.dll")),
                decompressor = new MpqTool.BZip2.BZip2InputStream(input),
                output = File.Create(decompressedFname);
     }

@@ -384,7 +384,7 @@ internal class BZip2InputStream : Stream
         }
     }
 
-    private static void HbCreateDecodeTables(int[] limit, List<int> bbase, List<int> perm, char[] length, int minLen, int maxLen, int alphaSize)
+    private static void HbCreateDecodeTables(int[] limit, List<int> bbase, List<int> perm, List<char> length, int minLen, int maxLen, int alphaSize)
     {
         for (int i = minLen; i <= maxLen; i++)
         {
@@ -651,13 +651,17 @@ internal class BZip2InputStream : Stream
 
         SelectorMtf(s, pos, nGroups, nSelectors);
 
-        char[][] len = s.TempCharArray2d;
+        s.TempCharArray2dList.Clear();
 
         /* Now the coding tables */
         for (int t = 0; t < nGroups; t++)
         {
+            s.TempCharArray2dList.Add(new List<char>());
+
+            List<char> len_t = s.TempCharArray2dList[t];
+
             int curr = GetBits(5);
-            char[] len_t = len[t];
+
             for (int i = 0; i < alphaSize; i++)
             {
                 while (BsGetBit())
@@ -665,7 +669,7 @@ internal class BZip2InputStream : Stream
                     curr += BsGetBit() ? -1 : 1;
                 }
 
-                len_t[i] = (char)curr;
+                len_t.Add((char)curr);
             }
         }
 
@@ -716,7 +720,6 @@ internal class BZip2InputStream : Stream
     private void CreateHuffmanDecodingTables(int alphaSize, int nGroups)
     {
         DecompressionState s = _data!;
-        char[][] len = s.TempCharArray2d;
 
         s.GLimitList.Clear();
         s.GBaseList.Clear();
@@ -726,7 +729,9 @@ internal class BZip2InputStream : Stream
         {
             int minLen = 32;
             int maxLen = 0;
-            char[] len_t = len[t];
+
+            List<char> len_t = s.TempCharArray2dList[t];
+
             for (int i = alphaSize; --i >= 0;)
             {
                 char lent = len_t[i];
@@ -742,7 +747,7 @@ internal class BZip2InputStream : Stream
             s.GBaseList.Add(new List<int>());
             s.GPermList.Add(new List<int>());
 
-            HbCreateDecodeTables(s.GLimitList[t], s.GBaseList[t], s.GPermList[t], len[t], minLen, maxLen, alphaSize);
+            HbCreateDecodeTables(s.GLimitList[t], s.GBaseList[t], s.GPermList[t], s.TempCharArray2dList[t], minLen, maxLen, alphaSize);
             s.GMinlen[t] = minLen;
         }
     }
@@ -1247,7 +1252,7 @@ internal class BZip2InputStream : Stream
             GMinlen = new int[BZip2.NGroups]; // 24 byte
 
             GetAndMoveToFrontDecode_yy = new byte[256]; // 512 byte
-            TempCharArray2d = BZip2.InitRectangularArray<char>(BZip2.NGroups, BZip2.MaxAlphaSize);
+            TempCharArray2dList = new();
             RecvDecodingTables_pos = new byte[BZip2.NGroups]; // 6 byte
 
             Ll8List = new();
@@ -1273,7 +1278,7 @@ internal class BZip2InputStream : Stream
 
         public byte[] GetAndMoveToFrontDecode_yy { get; }
 
-        public char[][] TempCharArray2d { get; }
+        public List<List<char>> TempCharArray2dList { get; }
 
         public byte[] RecvDecodingTables_pos { get; }
 

@@ -3,10 +3,10 @@
 [![Release](https://img.shields.io/github/release/HeroesToolChest/Heroes.MpqTool.svg)](https://github.com/HeroesToolChest/Heroes.MpqTool/releases/latest) 
 [![NuGet](https://img.shields.io/nuget/v/Heroes.MpqTool.svg)](https://www.nuget.org/packages/Heroes.MpqTool/)
 
-Heroes Mpq Tool is a .NET library that is specifically for parsing Heroes of the Storm MPQ files.
+Heroes Mpq Tool is a .NET library that is specifically designed for parsing Heroes of the Storm MPQ files.
 
 ## Usage
-To parse an mpq file, such as a `.StormReplay` file, use `MpqHeroesFile.Open(string fileName)` by providing the path to the file. It will provide a `MpqHeroesArchive` object to allow access to the files inside of the archive.
+To parse an mpq file, such as a `.StormReplay` or `.s2ma` file, use `MpqHeroesFile.Open(string fileName)` by providing the path to the file. It will provide a `MpqHeroesArchive` object to allow access to the files inside of the archive.
 
 Example:
 ```C#

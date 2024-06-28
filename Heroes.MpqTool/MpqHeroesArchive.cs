@@ -13,50 +13,28 @@ public class MpqHeroesArchive : IDisposable
     /// </summary>
     public const int HeaderSize = 0x100;
 
-    private const int MaxStackAllocLimit = 2048;
+    private const int MaxStackAllocLimit = 1024;
 
     private static readonly uint[] _stormBuffer = BuildStormBuffer();
 
     private readonly Stream _archiveStream;
-    private readonly MpqHeader _mpqHeader;
-
-    private readonly MpqHash[] _mpqHashes;
     private readonly MpqHeroesArchiveEntry[] _mpqArchiveEntries;
-
     private readonly int _blockSize;
+
+    private MpqHeader _mpqHeader;
+    private MpqHash[] _mpqHashes;
     private bool _isDisposed = false;
 
     internal MpqHeroesArchive(Stream stream)
     {
         _archiveStream = stream ?? throw new ArgumentNullException(nameof(stream));
 
-        Span<byte> headerBuffer = stackalloc byte[MaxStackAllocLimit]; // guess how much the header will be
-        stream.Read(headerBuffer);
-
-        BitReader bitReader = new(headerBuffer, EndianType.LittleEndian);
-
-        _mpqHeader = new MpqHeader(ref bitReader);
-
-        if (_mpqHeader.HashTableOffsetHigh != 0 || _mpqHeader.ExtendedBlockTableOffset != 0 || _mpqHeader.BlockTableOffsetHigh != 0)
-            throw new MpqHeroesToolException("MPQ format version 1 features are not supported");
+        SetMpqHeader(stream);
 
         _blockSize = 0x200 << _mpqHeader.BlockSize;
 
         // LoadHashTable
-        int hashBufferLength = (int)(_mpqHeader.HashTableSize * MpqHash.Size);
-        Span<byte> hashBuffer = hashBufferLength <= MaxStackAllocLimit ? stackalloc byte[hashBufferLength] : new byte[hashBufferLength]; // get the hash table buffer
-
-        stream.Position = (int)_mpqHeader.HashTablePos;
-        stream.Read(hashBuffer);
-
-        DecryptTable(hashBuffer, "(hash table)");
-
-        _mpqHashes = new MpqHash[_mpqHeader.HashTableSize];
-
-        BitReader mpqHashesBitReader = new(hashBuffer, EndianType.LittleEndian);
-
-        for (int i = 0; i < _mpqHeader.HashTableSize; i++)
-            _mpqHashes[i] = new MpqHash(ref mpqHashesBitReader);
+        LoadLoadHashTable(stream);
 
         // LoadEntryTable;
         int entryBufferLength = (int)(_mpqHeader.BlockTableSize * MpqHeroesArchiveEntry.Size);
@@ -479,7 +457,9 @@ public class MpqHeroesArchive : IDisposable
 
     private static string GetFileName(ReadOnlySpan<byte> source, int startIndex, ref int index, byte charByte)
     {
-        Span<char> data = stackalloc char[index - startIndex];
+        int size = index - startIndex;
+
+        Span<char> data = size <= MaxStackAllocLimit ? stackalloc char[size] : new char[size];
 
         Encoding.UTF8.GetChars(source[startIndex..index], data);
 
@@ -494,6 +474,39 @@ public class MpqHeroesArchive : IDisposable
         }
 
         return data.ToString();
+    }
+
+    [MemberNotNull(nameof(_mpqHeader))]
+    private void SetMpqHeader(Stream stream)
+    {
+        Span<byte> headerBuffer = stackalloc byte[2048]; // guess how much the header will be
+        stream.Read(headerBuffer);
+
+        BitReader bitReader = new(headerBuffer, EndianType.LittleEndian);
+
+        _mpqHeader = new MpqHeader(ref bitReader);
+
+        if (_mpqHeader.HashTableOffsetHigh != 0 || _mpqHeader.ExtendedBlockTableOffset != 0 || _mpqHeader.BlockTableOffsetHigh != 0)
+            throw new MpqHeroesToolException("MPQ format version 1 features are not supported");
+    }
+
+    [MemberNotNull(nameof(_mpqHashes))]
+    private void LoadLoadHashTable(Stream stream)
+    {
+        int hashBufferLength = (int)(_mpqHeader.HashTableSize * MpqHash.Size);
+        Span<byte> hashBuffer = hashBufferLength <= MaxStackAllocLimit ? stackalloc byte[hashBufferLength] : new byte[hashBufferLength]; // get the hash table buffer
+
+        stream.Position = (int)_mpqHeader.HashTablePos;
+        stream.Read(hashBuffer);
+
+        DecryptTable(hashBuffer, "(hash table)");
+
+        _mpqHashes = new MpqHash[_mpqHeader.HashTableSize];
+
+        BitReader mpqHashesBitReader = new(hashBuffer, EndianType.LittleEndian);
+
+        for (int i = 0; i < _mpqHeader.HashTableSize; i++)
+            _mpqHashes[i] = new MpqHash(ref mpqHashesBitReader);
     }
 
     private void AddListfileFileNames()

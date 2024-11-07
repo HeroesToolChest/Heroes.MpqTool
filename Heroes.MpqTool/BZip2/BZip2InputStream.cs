@@ -1,8 +1,6 @@
 // BZip2InputStream.cs
 // Original https://github.com/DinoChiesa/DotNetZip/blob/master/BZip2/BZip2InputStream.cs
 
-using System;
-using System.Reflection;
 using System.Runtime.CompilerServices;
 
 namespace Heroes.MpqTool.BZip2;

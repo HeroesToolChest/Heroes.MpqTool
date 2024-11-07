@@ -1,5 +1,7 @@
 ﻿// original https://github.com/DinoChiesa/DotNetZip/blob/master/BZip2%20Tests/BZip2UnitTest1.cs
 
+using Heroes.MpqTool.BZip2;
+
 namespace Heroes.MpqTool.Tests.BZip2;
 
 [TestClass]
@@ -187,7 +189,7 @@ I have a dream that one day every valley shall be exalted, and every hill and mo
                 var decompressedFname = Path.GetFileNameWithoutExtension(bzFname);
                 using (Stream fs = File.OpenRead(bzFname),
                        output = File.Create(decompressedFname),
-                       decompressor = new MpqTool.BZip2.BZip2InputStream(fs))
+                       decompressor = new BZip2InputStream(fs))
                 {
                     CopyStream(decompressor, output);
                 }
@@ -210,7 +212,7 @@ I have a dream that one day every valley shall be exalted, and every hill and mo
         string decompressedFname = "ThisWillNotWork.txt";
 
         using Stream input = File.OpenRead(Path.Join(Directory.GetCurrentDirectory(), "Heroes.MpqTool.Tests.dll")),
-               decompressor = new MpqTool.BZip2.BZip2InputStream(input),
+               decompressor = new BZip2InputStream(input),
                output = File.Create(decompressedFname);
     }
 
@@ -221,7 +223,7 @@ I have a dream that one day every valley shall be exalted, and every hill and mo
         string decompressedFname = "ThisWillNotWork.txt";
 
         using Stream input = new MemoryStream(), // empty stream
-               decompressor = new Ionic.BZip2.BZip2InputStream(input),
+               decompressor = new BZip2InputStream(input),
                output = File.Create(decompressedFname);
     }
 
@@ -235,7 +237,7 @@ I have a dream that one day every valley shall be exalted, and every hill and mo
         foreach (var filename in files)
         {
             using var fs = File.OpenRead(filename);
-            using var decompressor = new Ionic.BZip2.BZip2InputStream(fs);
+            using var decompressor = new BZip2InputStream(fs);
         }
     }
 

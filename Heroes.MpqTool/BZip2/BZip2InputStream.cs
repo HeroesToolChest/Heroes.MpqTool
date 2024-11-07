@@ -109,11 +109,8 @@ internal class BZip2InputStream : Stream
     {
         get
         {
-#if NET8_0_OR_GREATER
             ObjectDisposedException.ThrowIf(_disposed, "BZip2Stream");
-#else
-            if (_disposed) throw new ObjectDisposedException("BZip2Stream");
-#endif
+
             return _input.CanRead;
         }
     }
@@ -139,11 +136,8 @@ internal class BZip2InputStream : Stream
     {
         get
         {
-#if NET8_0_OR_GREATER
             ObjectDisposedException.ThrowIf(_disposed, "BZip2Stream");
-#else
-            if (_disposed) throw new ObjectDisposedException("BZip2Stream");
-#endif
+
             return _input.CanWrite;
         }
     }
@@ -175,13 +169,8 @@ internal class BZip2InputStream : Stream
         }
     }
 
-#if NET8_0_OR_GREATER
     private static ReadOnlySpan<int> RNums =>
     [
-#else
-    private static ReadOnlySpan<int> RNums => new[]
-    {
-#endif
         619, 720, 127, 481, 931, 816, 813, 233, 566, 247,
         985, 724, 205, 454, 863, 491, 741, 242, 949, 214,
         733, 859, 335, 708, 621, 574,  73, 654, 730, 472,
@@ -234,11 +223,7 @@ internal class BZip2InputStream : Stream
         920, 176, 193, 713, 857, 265, 203,  50, 668, 108,
         645, 990, 626, 197, 510, 357, 358, 850, 858, 364,
         936, 638,
-#if NET8_0_OR_GREATER
     ];
-#else
-    };
-#endif
 
     public override int Read(byte[] buffer, int offset, int count)
     {
@@ -316,11 +301,8 @@ internal class BZip2InputStream : Stream
     /// </summary>
     public override void Flush()
     {
-#if NET8_0_OR_GREATER
         ObjectDisposedException.ThrowIf(_disposed, "BZip2Stream");
-#else
-        if (_disposed) throw new ObjectDisposedException("BZip2Stream");
-#endif
+
         _input.Flush();
     }
 
@@ -516,7 +498,7 @@ internal class BZip2InputStream : Stream
             _blockRandomised = GetBits(1) == 1;
 
             // Lazily allocate data
-            _data ??= new DecompressionState(_blockSize100k);
+            _data ??= new DecompressionState();
 
             // currBlockNo++;
             GetAndMoveToFrontDecode();
@@ -656,7 +638,7 @@ internal class BZip2InputStream : Stream
         /* Now the coding tables */
         for (int t = 0; t < nGroups; t++)
         {
-            s.TempCharArray2dList.Add(new List<char>());
+            s.TempCharArray2dList.Add([]);
 
             List<char> len_t = s.TempCharArray2dList[t];
 
@@ -743,8 +725,8 @@ internal class BZip2InputStream : Stream
             }
 
             s.GLimitList.Add(new int[Math.Max(maxLen, BZip2.MaxCodeLength)]);
-            s.GBaseList.Add(new List<int>());
-            s.GPermList.Add(new List<int>());
+            s.GBaseList.Add([]);
+            s.GPermList.Add([]);
 
             HbCreateDecodeTables(s.GLimitList[t], s.GBaseList[t], s.GPermList[t], s.TempCharArray2dList[t], minLen, maxLen, alphaSize);
             s.GMinlen[t] = minLen;
@@ -1241,25 +1223,25 @@ internal class BZip2InputStream : Stream
 
     private sealed class DecompressionState
     {
-        public DecompressionState(int blockSize100k)
+        public DecompressionState()
         {
             Unzftab = new int[256]; // 1024 byte
 
-            GLimitList = new();
-            GBaseList = new();
-            GPermList = new();
+            GLimitList = [];
+            GBaseList = [];
+            GPermList = [];
             GMinlen = new int[BZip2.NGroups]; // 24 byte
 
             GetAndMoveToFrontDecode_yy = new byte[256]; // 512 byte
-            TempCharArray2dList = new();
+            TempCharArray2dList = [];
             RecvDecodingTables_pos = new byte[BZip2.NGroups]; // 6 byte
 
-            Ll8List = new();
+            Ll8List = [];
         }
 
         public byte[] SeqToUnseq { get; } = new byte[256]; // 256 byte
 
-        public List<byte> SelectorList { get; } = new();
+        public List<byte> SelectorList { get; } = [];
 
         /**
          * Freq table collected to save a pass over the data during

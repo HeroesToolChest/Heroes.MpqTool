@@ -40,7 +40,7 @@ public class MpqHeroesArchive : IDisposable
         int entryBufferLength = (int)(_mpqHeader.BlockTableSize * MpqHeroesArchiveEntry.Size);
         Span<byte> entryBuffer = entryBufferLength <= MaxStackAllocLimit ? stackalloc byte[entryBufferLength] : new byte[entryBufferLength]; // get the entry table buffer
         stream.Position = (int)_mpqHeader.BlockTablePos;
-        stream.Read(entryBuffer);
+        stream.ReadExactly(entryBuffer);
 
         DecryptTable(entryBuffer, "(block table)");
 
@@ -66,16 +66,11 @@ public class MpqHeroesArchive : IDisposable
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="size"/> cannot be less than 1.</exception>
     public Stream GetHeaderBytes(int size = HeaderSize)
     {
-#if NET8_0_OR_GREATER
         ArgumentOutOfRangeException.ThrowIfLessThan(size, 1);
-#else
-        if (size < 1)
-            throw new ArgumentOutOfRangeException(nameof(size));
-#endif
 
         Span<byte> data = new byte[size];
         _archiveStream.Position = 0;
-        _archiveStream.Read(data);
+        _archiveStream.ReadExactly(data);
 
         MemoryStream stream = new();
         stream.Write(data);
@@ -91,7 +86,7 @@ public class MpqHeroesArchive : IDisposable
     public void GetHeaderBytes(Span<byte> buffer)
     {
         _archiveStream.Position = 0;
-        _archiveStream.Read(buffer);
+        _archiveStream.ReadExactly(buffer);
     }
 
     /// <summary>
@@ -192,7 +187,7 @@ public class MpqHeroesArchive : IDisposable
             Span<byte> blockPositionByte = blockPositionByteLength <= MaxStackAllocLimit ? stackalloc byte[blockPositionByteLength] : new byte[blockPositionByteLength];
 
             _archiveStream.Seek(mpqArchiveEntry.FilePosition, SeekOrigin.Begin);
-            _archiveStream.Read(blockPositionByte);
+            _archiveStream.ReadExactly(blockPositionByte);
 
             SetBlockPositions(blockPositionByte, blockPositionsUint, blockPositionCount);
 
@@ -431,7 +426,7 @@ public class MpqHeroesArchive : IDisposable
 
         using BZip2InputStream stream = new(memoryStream);
 
-        stream.Read(buffer);
+        stream.ReadExactly(buffer);
     }
 
     private static void ZlibDecompress(Span<byte> buffer)
@@ -442,7 +437,7 @@ public class MpqHeroesArchive : IDisposable
 
         using ZLibStream stream = new(memoryStream, CompressionMode.Decompress, false);
 
-        stream.Read(buffer);
+        stream.ReadExactly(buffer);
     }
 
     private static void SetBlockPositions(ReadOnlySpan<byte> source, Span<uint> blockPositions, int blockPositionCount)
@@ -480,7 +475,7 @@ public class MpqHeroesArchive : IDisposable
     private void SetMpqHeader(Stream stream)
     {
         Span<byte> headerBuffer = stackalloc byte[2048]; // guess how much the header will be
-        stream.Read(headerBuffer);
+        stream.ReadExactly(headerBuffer);
 
         BitReader bitReader = new(headerBuffer, EndianType.LittleEndian);
 
@@ -497,7 +492,7 @@ public class MpqHeroesArchive : IDisposable
         Span<byte> hashBuffer = hashBufferLength <= MaxStackAllocLimit ? stackalloc byte[hashBufferLength] : new byte[hashBufferLength]; // get the hash table buffer
 
         stream.Position = (int)_mpqHeader.HashTablePos;
-        stream.Read(hashBuffer);
+        stream.ReadExactly(hashBuffer);
 
         DecryptTable(hashBuffer, "(hash table)");
 

@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+  </Folder>
+  <Folder Name="/Tests/">
+    <Project Path="Tests/Heroes.MpqTool.Tests/Heroes.MpqTool.Tests.csproj" />
+  </Folder>
+  <Project Path="Heroes.MpqTool.Benchmarks/Heroes.MpqTool.Benchmarks.csproj" />
+  <Project Path="Heroes.MpqTool/Heroes.MpqTool.csproj" />
+</Solution>

@@ -10,7 +10,7 @@ public class MpqHeroesFileTests
     {
         MpqHeroesArchive mpqHeroesArchive = MpqHeroesFile.Open(Path.Join(_mpqDirectory, "replayFile1.StormR"));
 
-        Assert.AreEqual(14, mpqHeroesArchive.MpqArchiveEntries.Length);
+        Assert.HasCount(14, mpqHeroesArchive.MpqArchiveEntries);
         Assert.AreEqual("replay.details", mpqHeroesArchive.MpqArchiveEntries[0].FileName);
         Assert.AreEqual("replay.initData", mpqHeroesArchive.MpqArchiveEntries[1].FileName);
         Assert.AreEqual("replay.server.battlelobby", mpqHeroesArchive.MpqArchiveEntries[2].FileName);
@@ -25,7 +25,7 @@ public class MpqHeroesFileTests
     {
         MpqHeroesArchive mpqHeroesArchive = MpqHeroesFile.Open(Path.Join(_mpqDirectory, "mapModFile1.s2ma"));
 
-        Assert.AreEqual(66, mpqHeroesArchive.MpqArchiveEntries.Length);
+        Assert.HasCount(66, mpqHeroesArchive.MpqArchiveEntries);
         Assert.AreEqual("t3CellFlags", mpqHeroesArchive.MpqArchiveEntries[0].FileName);
         Assert.AreEqual("DocumentInfo.version", mpqHeroesArchive.MpqArchiveEntries[1].FileName);
         Assert.AreEqual("CellAttribute_Pnp", mpqHeroesArchive.MpqArchiveEntries[2].FileName);
@@ -38,6 +38,6 @@ public class MpqHeroesFileTests
     [TestMethod]
     public void Open_EmtpyFileName_ThrowsException()
     {
-        Assert.ThrowsException<ArgumentException>(() => MpqHeroesFile.Open(string.Empty));
+        Assert.ThrowsExactly<ArgumentException>(() => MpqHeroesFile.Open(string.Empty));
     }
 }

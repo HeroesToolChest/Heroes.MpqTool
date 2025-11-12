@@ -30,7 +30,7 @@ public class MpqHeroesArchiveTests
         using MpqHeroesArchive mpqHeroesArchive = MpqHeroesFile.Open(Path.Join(_mpqDirectory, _replayFile1));
 
         // act / assert
-        Assert.ThrowsException<FileNotFoundException>(() => mpqHeroesArchive.GetEntry(string.Empty));
+        Assert.ThrowsExactly<FileNotFoundException>(() => mpqHeroesArchive.GetEntry(string.Empty));
     }
 
     [TestMethod]
@@ -97,11 +97,11 @@ public class MpqHeroesArchiveTests
     public void DecompressEntry_WithCompressNonSingleUnitEntry_ReturnsStream()
     {
         // arrange
-        using MpqHeroesArchive mpqHeroesArchive = MpqHeroesFile.Open(Path.Join(_mpqDirectory, _replayFile2));
-        MpqHeroesArchiveEntry entry = mpqHeroesArchive.GetEntry(_replayTrackerEventsEntry);
+        using MpqHeroesArchive mpqHeroesFile = MpqHeroesFile.Open(Path.Join(_mpqDirectory, _replayFile2));
+        MpqHeroesArchiveEntry entry = mpqHeroesFile.GetEntry(_replayTrackerEventsEntry);
 
         // act
-        Stream stream = mpqHeroesArchive.DecompressEntry(entry);
+        Stream stream = mpqHeroesFile.DecompressEntry(entry);
 
         // assert
         Assert.AreEqual((int)entry.FileSize, stream.Length);
@@ -230,6 +230,6 @@ public class MpqHeroesArchiveTests
         object? Action() => mpqHeroesArchive.GetHeaderBytes(0);
 
         // assert
-        Assert.ThrowsException<ArgumentOutOfRangeException>(Action);
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(Action);
     }
 }

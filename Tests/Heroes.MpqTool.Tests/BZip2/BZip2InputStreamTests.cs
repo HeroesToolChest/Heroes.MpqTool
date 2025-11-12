@@ -1,6 +1,4 @@
-﻿// original https://github.com/DinoChiesa/DotNetZip/blob/master/BZip2%20Tests/BZip2UnitTest1.cs
-
-using Heroes.MpqTool.BZip2;
+﻿using Heroes.MpqTool.BZip2;
 
 namespace Heroes.MpqTool.Tests.BZip2;
 
@@ -129,7 +127,6 @@ I have a dream that one day every valley shall be exalted, and every hill and mo
     }
 
     [TestMethod]
-    [Timeout(15 * 60 * 1000)] // 60*1000 = 1min
     public void BZBasic()
     {
         // select a random text string
@@ -196,7 +193,7 @@ I have a dream that one day every valley shall be exalted, and every hill and mo
 
                 // check crc
                 int crcDecompressed = GetCrc(decompressedFname);
-                Assert.AreEqual(crcOriginal, crcDecompressed, "CRC mismatch {0:X8} != {1:X8}", crcOriginal, crcDecompressed);
+                Assert.AreEqual(crcOriginal, crcDecompressed, $"CRC mismatch {crcOriginal:X8} != {crcDecompressed:X8}");
 
                 // just for the sake of disk space economy:
                 File.Delete(decompressedFname);
@@ -206,25 +203,25 @@ I have a dream that one day every valley shall be exalted, and every hill and mo
     }
 
     [TestMethod]
-    [ExpectedException(typeof(IOException))]
     public void BZError1()
     {
-        string decompressedFname = "ThisWillNotWork.txt";
+        using Stream input = File.OpenRead(Path.Join(Directory.GetCurrentDirectory(), "Heroes.MpqTool.Tests.dll"));
 
-        using Stream input = File.OpenRead(Path.Join(Directory.GetCurrentDirectory(), "Heroes.MpqTool.Tests.dll")),
-               decompressor = new BZip2InputStream(input),
-               output = File.Create(decompressedFname);
+        Assert.ThrowsExactly<IOException>(() =>
+        {
+            using BZip2InputStream decompressor = new(input);
+        });
     }
 
     [TestMethod]
-    [ExpectedException(typeof(IOException))]
     public void BZError2()
     {
-        string decompressedFname = "ThisWillNotWork.txt";
+        using Stream input = new MemoryStream();
 
-        using Stream input = new MemoryStream(), // empty stream
-               decompressor = new BZip2InputStream(input),
-               output = File.Create(decompressedFname);
+        Assert.ThrowsExactly<IOException>(() =>
+        {
+            using BZip2InputStream decompressor = new(input);
+        });
     }
 
     [TestMethod]
@@ -232,7 +229,7 @@ I have a dream that one day every valley shall be exalted, and every hill and mo
     {
         var files = Directory.GetFiles("BZip2Files");
 
-        Assert.IsTrue(files.Length > 2, "There are not enough sample files");
+        Assert.IsGreaterThan(2, files.Length, "There are not enough sample files");
 
         foreach (var filename in files)
         {

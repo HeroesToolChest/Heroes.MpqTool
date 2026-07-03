@@ -33,7 +33,7 @@ public ref struct BitReader
     /// <summary>
     /// Gets or sets the current index in the buffer.
     /// </summary>
-    public int Index { get; set; } = 0;
+    public int Index { get; set; }
 
     /// <summary>
     /// Gets or sets the endian type.
@@ -72,11 +72,13 @@ public ref struct BitReader
             throw new ArgumentOutOfRangeException(nameof(numberOfBits), "Number of bits must be greater than -1");
 
         // check if we're using full bytes and in a middle of a byte
-        if (numberOfBits % 8 == 0 && (_bitIndex & 7) == 0)
+        if ((numberOfBits & 7) == 0 && (_bitIndex & 7) == 0)
         {
             int numberOfBytes = numberOfBits / 8;
 
-            if (numberOfBytes == 2)
+            if (numberOfBytes == 1)
+                return ReadAlignedByte();
+            else if (numberOfBytes == 2)
                 return ReadUInt16Aligned();
             else if (numberOfBytes == 4)
                 return ReadUInt32Aligned();
@@ -103,7 +105,9 @@ public ref struct BitReader
         {
             int numberOfBytes = numberOfBits / 8;
 
-            if (numberOfBytes == 2)
+            if (numberOfBytes == 1)
+                return ReadAlignedByte();
+            else if (numberOfBytes == 2)
                 return ReadUInt16Aligned();
             else if (numberOfBytes == 4)
                 return ReadUInt32Aligned();
@@ -132,7 +136,9 @@ public ref struct BitReader
         {
             int numberOfBytes = numberOfBits / 8;
 
-            if (numberOfBytes == 2)
+            if (numberOfBytes == 1)
+                return ReadAlignedByte();
+            else if (numberOfBytes == 2)
                 return ReadInt16Aligned();
             else if (numberOfBytes == 4)
                 return ReadInt32Aligned();
@@ -155,6 +161,16 @@ public ref struct BitReader
         SetBitArray(bitArray);
 
         return bitArray;
+    }
+
+    /// <summary>
+    /// Read a number of bits from the buffer as an array of booleans.
+    /// </summary>
+    /// <param name="destination">The span to fill with boolean values.</param>
+    public void ReadBitArray(Span<bool> destination)
+    {
+        for (int i = 0; i < destination.Length; i++)
+            destination[i] = ReadBoolean();
     }
 
     /// <summary>
@@ -197,10 +213,13 @@ public ref struct BitReader
     /// <returns>An unsigned short.</returns>
     public ushort ReadUInt16Aligned()
     {
-        if (EndianType == EndianType.LittleEndian)
-            return BinaryPrimitives.ReadUInt16LittleEndian(_buffer[Index..(Index += 2)]);
-        else
-            return BinaryPrimitives.ReadUInt16BigEndian(_buffer[Index..(Index += 2)]);
+        ushort value = EndianType == EndianType.LittleEndian
+            ? BinaryPrimitives.ReadUInt16LittleEndian(_buffer.Slice(Index, 2))
+            : BinaryPrimitives.ReadUInt16BigEndian(_buffer.Slice(Index, 2));
+
+        Index += 2;
+
+        return value;
     }
 
     /// <summary>
@@ -209,10 +228,13 @@ public ref struct BitReader
     /// <returns>A short.</returns>
     public short ReadInt16Aligned()
     {
-        if (EndianType == EndianType.LittleEndian)
-            return BinaryPrimitives.ReadInt16LittleEndian(_buffer[Index..(Index += 2)]);
-        else
-            return BinaryPrimitives.ReadInt16BigEndian(_buffer[Index..(Index += 2)]);
+        short value = EndianType == EndianType.LittleEndian
+            ? BinaryPrimitives.ReadInt16LittleEndian(_buffer.Slice(Index, 2))
+            : BinaryPrimitives.ReadInt16BigEndian(_buffer.Slice(Index, 2));
+
+        Index += 2;
+
+        return value;
     }
 
     /// <summary>
@@ -227,10 +249,13 @@ public ref struct BitReader
     /// <returns>An unsigned interger.</returns>
     public uint ReadUInt32Aligned()
     {
-        if (EndianType == EndianType.LittleEndian)
-            return BinaryPrimitives.ReadUInt32LittleEndian(_buffer[Index..(Index += 4)]);
-        else
-            return BinaryPrimitives.ReadUInt32BigEndian(_buffer[Index..(Index += 4)]);
+        uint value = EndianType == EndianType.LittleEndian
+            ? BinaryPrimitives.ReadUInt32LittleEndian(_buffer.Slice(Index, 4))
+            : BinaryPrimitives.ReadUInt32BigEndian(_buffer.Slice(Index, 4));
+
+        Index += 4;
+
+        return value;
     }
 
     /// <summary>
@@ -239,16 +264,20 @@ public ref struct BitReader
     /// <returns>An integer.</returns>
     public int ReadInt32Aligned()
     {
-        if (EndianType == EndianType.LittleEndian)
-            return BinaryPrimitives.ReadInt32LittleEndian(_buffer[Index..(Index += 4)]);
-        else
-            return BinaryPrimitives.ReadInt32BigEndian(_buffer[Index..(Index += 4)]);
+        int value = EndianType == EndianType.LittleEndian
+            ? BinaryPrimitives.ReadInt32LittleEndian(_buffer.Slice(Index, 4))
+            : BinaryPrimitives.ReadInt32BigEndian(_buffer.Slice(Index, 4));
+
+        Index += 4;
+
+        return value;
     }
 
     /// <summary>
     /// Reads 4 unaligned bytes from the buffer as an uint.
     /// </summary>
     /// <returns>An unsigned integer.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public uint ReadUInt32Unaligned() => ReadBits(32);
 
     /// <summary>
@@ -263,10 +292,13 @@ public ref struct BitReader
     /// <returns>An unsigned long.</returns>
     public ulong ReadUInt64Aligned()
     {
-        if (EndianType == EndianType.LittleEndian)
-            return BinaryPrimitives.ReadUInt64LittleEndian(_buffer[Index..(Index += 8)]);
-        else
-            return BinaryPrimitives.ReadUInt64BigEndian(_buffer[Index..(Index += 8)]);
+        ulong value = EndianType == EndianType.LittleEndian
+            ? BinaryPrimitives.ReadUInt64LittleEndian(_buffer.Slice(Index, 8))
+            : BinaryPrimitives.ReadUInt64BigEndian(_buffer.Slice(Index, 8));
+
+        Index += 8;
+
+        return value;
     }
 
     /// <summary>
@@ -275,10 +307,13 @@ public ref struct BitReader
     /// <returns>A long.</returns>
     public long ReadInt64Aligned()
     {
-        if (EndianType == EndianType.LittleEndian)
-            return BinaryPrimitives.ReadInt64LittleEndian(_buffer[Index..(Index += 8)]);
-        else
-            return BinaryPrimitives.ReadInt64BigEndian(_buffer[Index..(Index += 8)]);
+        long value = EndianType == EndianType.LittleEndian
+            ? BinaryPrimitives.ReadInt64LittleEndian(_buffer.Slice(Index, 8))
+            : BinaryPrimitives.ReadInt64BigEndian(_buffer.Slice(Index, 8));
+
+        Index += 8;
+
+        return value;
     }
 
     /// <summary>
@@ -321,17 +356,12 @@ public ref struct BitReader
     public ReadOnlySpan<byte> ReadBytesForVInt()
     {
         int count = 1;
-
         byte dataByte = ReadAlignedByte();
-        long result = dataByte >> 1 & 0x3f;
-        int bits = 6;
 
         while ((dataByte & 0x80) != 0)
         {
             count++;
             dataByte = ReadAlignedByte();
-            result |= ((long)dataByte & 0x7f) << bits;
-            bits += 7;
         }
 
         Index -= count;
@@ -343,6 +373,7 @@ public ref struct BitReader
     /// Reads one byte.
     /// </summary>
     /// <returns>The byte at the current index.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public byte ReadAlignedByte() => _buffer[Index++];
 
     /// <summary>
@@ -466,11 +497,19 @@ public ref struct BitReader
     /// </summary>
     /// <param name="count">The number of bytes to read.</param>
     /// <returns>A byte.</returns>
-    public ReadOnlySpan<byte> ReadBytes(int count) => _buffer[Index..(Index += count)];
+    public ReadOnlySpan<byte> ReadBytes(int count)
+    {
+        ReadOnlySpan<byte> span = _buffer.Slice(Index, count);
+
+        Index += count;
+
+        return span;
+    }
 
     /// <summary>
     /// If in the middle of a byte, moves to the start of the next byte.
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void AlignToByte()
     {
         if ((_bitIndex & 7) > 0)
@@ -521,31 +560,6 @@ public ref struct BitReader
         }
     }
 
-    private uint GetValueFromBits(int numberOfBits)
-    {
-        uint value = 0;
-
-        while (numberOfBits > 0)
-        {
-            int bytePosition = _bitIndex & 7;
-
-            if (bytePosition == 0)
-            {
-                _currentByte = ReadAlignedByte();
-            }
-
-            int bitsLeftInByte = 8 - bytePosition;
-            int bitsToRead = bitsLeftInByte > numberOfBits ? numberOfBits : bitsLeftInByte;
-
-            value = value << bitsToRead | (uint)_currentByte >> bytePosition & (1u << bitsToRead) - 1u;
-
-            _bitIndex += bitsToRead;
-            numberOfBits -= bitsToRead;
-        }
-
-        return value;
-    }
-
     private ReadOnlySpan<byte> ReadBlob(int numberOfBits, int? additionalBytes = null)
     {
         if (numberOfBits < 1)
@@ -571,16 +585,13 @@ public ref struct BitReader
         while (numberOfBits > 0)
         {
             int bytePosition = _bitIndex & 7;
-            int bitsLeftInByte = 8 - bytePosition;
 
             if (bytePosition == 0)
-            {
                 _currentByte = ReadAlignedByte();
-            }
 
-            int bitsToRead = bitsLeftInByte > numberOfBits ? numberOfBits : bitsLeftInByte;
+            int bitsToRead = Math.Min(8 - bytePosition, numberOfBits);
+            value = value << bitsToRead | (ulong)(_currentByte >> bytePosition) & (1ul << bitsToRead) - 1ul;
 
-            value = value << bitsToRead | (uint)_currentByte >> bytePosition & (1u << bitsToRead) - 1u;
             _bitIndex += bitsToRead;
             numberOfBits -= bitsToRead;
         }
@@ -588,29 +599,9 @@ public ref struct BitReader
         return value;
     }
 
-    private long GetLongValueFromBits(int numberOfBits)
-    {
-        long value = 0;
+    private uint GetValueFromBits(int numberOfBits) => (uint)GetULongValueFromBits(numberOfBits);
 
-        while (numberOfBits > 0)
-        {
-            int bytePosition = _bitIndex & 7;
-            int bitsLeftInByte = 8 - bytePosition;
-
-            if (bytePosition == 0)
-            {
-                _currentByte = ReadAlignedByte();
-            }
-
-            int bitsToRead = bitsLeftInByte > numberOfBits ? numberOfBits : bitsLeftInByte;
-
-            value = value << bitsToRead | (uint)_currentByte >> bytePosition & (1u << bitsToRead) - 1u;
-            _bitIndex += bitsToRead;
-            numberOfBits -= bitsToRead;
-        }
-
-        return value;
-    }
+    private long GetLongValueFromBits(int numberOfBits) => (long)GetULongValueFromBits(numberOfBits);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void SetBitArray(bool[] bitArray)

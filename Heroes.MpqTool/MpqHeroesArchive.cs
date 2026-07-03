@@ -68,15 +68,11 @@ public class MpqHeroesArchive : IDisposable
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(size, 1);
 
-        Span<byte> data = new byte[size];
+        byte[] data = new byte[size];
         _archiveStream.Position = 0;
         _archiveStream.ReadExactly(data);
 
-        MemoryStream stream = new();
-        stream.Write(data);
-        stream.Position = 0;
-
-        return stream;
+        return new MemoryStream(data, writable: false);
     }
 
     /// <summary>
@@ -234,11 +230,22 @@ public class MpqHeroesArchive : IDisposable
     /// <returns>A stream of the contents of the entry.</returns>
     public Stream DecompressEntry(MpqHeroesArchiveEntry mpqArchiveEntry)
     {
-        Span<byte> buffer = mpqArchiveEntry.FileSize <= MaxStackAllocLimit ? stackalloc byte[(int)mpqArchiveEntry.FileSize] : new byte[(int)mpqArchiveEntry.FileSize];
-        DecompressEntry(mpqArchiveEntry, buffer);
+        int size = (int)mpqArchiveEntry.FileSize;
+
+        if (size > MaxStackAllocLimit)
+        {
+            byte[] buffer = new byte[size];
+
+            DecompressEntry(mpqArchiveEntry, buffer);
+
+            return new MemoryStream(buffer, writable: false);
+        }
+
+        Span<byte> stackBuffer = stackalloc byte[size];
+        DecompressEntry(mpqArchiveEntry, stackBuffer);
 
         MemoryStream stream = new();
-        stream.Write(buffer);
+        stream.Write(stackBuffer);
         stream.Position = 0;
 
         return stream;
@@ -246,17 +253,14 @@ public class MpqHeroesArchive : IDisposable
 
     internal static uint HashString(ReadOnlySpan<char> input, int offset)
     {
-        Span<char> upperInput = input.Length <= MaxStackAllocLimit ? stackalloc char[input.Length] : new char[input.Length];
-
         uint seed1 = 0x7fed7fed;
         uint seed2 = 0xeeeeeeee;
 
-        input.ToUpperInvariant(upperInput);
-
-        for (int i = 0; i < upperInput.Length; i++)
+        for (int i = 0; i < input.Length; i++)
         {
-            seed1 = _stormBuffer[offset + upperInput[i]] ^ seed1 + seed2;
-            seed2 = upperInput[i] + seed1 + seed2 + (seed2 << 5) + 3;
+            char c = char.ToUpperInvariant(input[i]);
+            seed1 = _stormBuffer[offset + c] ^ seed1 + seed2;
+            seed2 = c + seed1 + seed2 + (seed2 << 5) + 3;
         }
 
         return seed1;
@@ -452,23 +456,12 @@ public class MpqHeroesArchive : IDisposable
 
     private static string GetFileName(ReadOnlySpan<byte> source, int startIndex, ref int index, byte charByte)
     {
-        int size = index - startIndex;
+        string fileName = Encoding.UTF8.GetString(source[startIndex..index]);
 
-        Span<char> data = size <= MaxStackAllocLimit ? stackalloc char[size] : new char[size];
+        if (charByte == 13 && index + 1 < source.Length && source[index + 1] == 10)
+            index++;
 
-        Encoding.UTF8.GetChars(source[startIndex..index], data);
-
-        // if it's a \r, check one ahead for a \n
-        if (charByte == 13 && index < source.Length)
-        {
-            byte nByte = source[index + 1];
-            if (nByte == 10)
-            {
-                index++;
-            }
-        }
-
-        return data.ToString();
+        return fileName;
     }
 
     [MemberNotNull(nameof(_mpqHeader))]
@@ -579,10 +572,7 @@ public class MpqHeroesArchive : IDisposable
         offset += mpqArchiveEntry.FilePosition;
 
         _archiveStream.Seek(offset, SeekOrigin.Begin);
-        int read = _archiveStream.Read(buffer[..toRead]);
-
-        if (read != toRead)
-            throw new MpqHeroesToolException("Insufficient data or invalid data length");
+        _archiveStream.ReadExactly(buffer[..toRead]);
 
         if (mpqArchiveEntry.IsEncrypted && mpqArchiveEntry.FileSize > 3)
         {

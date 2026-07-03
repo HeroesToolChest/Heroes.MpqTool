@@ -15,15 +15,16 @@ public static class MpqHeroesFile
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
 
-        FileStream fileStream = new(fileName, FileMode.Open, FileAccess.Read, FileShare.Read, 0x1000, false);
+        FileStream? fileStream = null;
 
         try
         {
+            fileStream = new FileStream(fileName, FileMode.Open, FileAccess.Read, FileShare.Read, 0x1000, false);
             return new MpqHeroesArchive(fileStream);
         }
         catch
         {
-            fileStream.Dispose();
+            fileStream?.Dispose();
             throw;
         }
     }

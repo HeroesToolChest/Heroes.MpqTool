@@ -88,7 +88,7 @@ public class MpqHeroesArchive : IDisposable
     /// <summary>
     /// Gets a <see cref="MpqHeroesArchiveEntry"/> by its file name.
     /// </summary>
-    /// <param name="fileName">The name of the archive entry.</param>
+    /// <param name="fileName">The name of the archive entry. Is case-insensitive.</param>
     /// <returns>An <see cref="MpqHeroesArchiveEntry"/>.</returns>
     /// <exception cref="FileNotFoundException">The <paramref name="fileName"/> was not found.</exception>
     public MpqHeroesArchiveEntry GetEntry(string fileName)
@@ -99,7 +99,7 @@ public class MpqHeroesArchive : IDisposable
     /// <summary>
     /// Gets a <see cref="MpqHeroesArchiveEntry"/> by its file name.
     /// </summary>
-    /// <param name="fileName">The name of the archive entry.</param>
+    /// <param name="fileName">The name of the archive entry. Is case-insensitive.</param>
     /// <returns>An <see cref="MpqHeroesArchiveEntry"/>.</returns>
     /// <exception cref="FileNotFoundException">The <paramref name="fileName"/> was not found.</exception>
     public MpqHeroesArchiveEntry GetEntry(ReadOnlySpan<char> fileName)
@@ -113,7 +113,7 @@ public class MpqHeroesArchive : IDisposable
     /// <summary>
     /// Tries to get a <see cref="MpqHeroesArchiveEntry"/> by it's file name.
     /// </summary>
-    /// <param name="fileName">The name of the archive entry.</param>
+    /// <param name="fileName">The name of the archive entry. Is case-insensitive.</param>
     /// <param name="mpqHeroesArchiveEntry">When this method returns, contains the <see cref="MpqHeroesArchiveEntry"/>.</param>
     /// <returns><see langword="true"/> if the value was found; otherwise <see langword="false"/>.</returns>
     public bool TryGetEntry(string fileName, [NotNullWhen(true)] out MpqHeroesArchiveEntry? mpqHeroesArchiveEntry)
@@ -124,7 +124,7 @@ public class MpqHeroesArchive : IDisposable
     /// <summary>
     /// Tries to get a <see cref="MpqHeroesArchiveEntry"/> by it's file name.
     /// </summary>
-    /// <param name="fileName">The name of the archive entry.</param>
+    /// <param name="fileName">The name of the archive entry. Is case-insensitive.</param>
     /// <param name="mpqHeroesArchiveEntry">When this method returns, contains the <see cref="MpqHeroesArchiveEntry"/>.</param>
     /// <returns><see langword="true"/> if the value was found; otherwise <see langword="false"/>.</returns>
     public bool TryGetEntry(ReadOnlySpan<char> fileName, [NotNullWhen(true)] out MpqHeroesArchiveEntry? mpqHeroesArchiveEntry)
@@ -144,14 +144,14 @@ public class MpqHeroesArchive : IDisposable
     /// <summary>
     /// Checks if the entry exist.
     /// </summary>
-    /// <param name="fileName">The name of the archive entry. Is not case-sensitive.</param>
+    /// <param name="fileName">The name of the archive entry. Is case-insensitive.</param>
     /// <returns><see langword="true"/> if the entry exists, otherwise returns <see langword="false"/>.</returns>
     public bool FileEntryExists(string fileName) => FileEntryExists(fileName.AsSpan());
 
     /// <summary>
     /// Checks if the entry exist.
     /// </summary>
-    /// <param name="fileName">The name of the archive entry. Is not case-sensitive.</param>
+    /// <param name="fileName">The name of the archive entry. Is case-insensitive.</param>
     /// <returns><see langword="true"/> if the entry exists, otherwise returns <see langword="false"/>.</returns>
     public bool FileEntryExists(ReadOnlySpan<char> fileName) => TryGetHashEntry(fileName, out _);
 

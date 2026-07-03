@@ -10,7 +10,7 @@ To parse an mpq file, such as a `.StormReplay` or `.s2ma` file, use `MpqHeroesFi
 
 Example:
 ```C#
-// parse the mpq file
+// parse the mpq file by passing the path to the file or provide a Stream
 using MpqHeroesArchive mpqHeroesArchive = MpqHeroesFile.Open("path/to/file");
 
 // get an entry, such as replay.initData for a replay file

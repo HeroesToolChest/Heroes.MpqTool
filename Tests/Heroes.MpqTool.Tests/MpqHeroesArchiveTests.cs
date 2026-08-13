@@ -11,6 +11,20 @@ public class MpqHeroesArchiveTests
     private readonly string _replayTrackerEventsEntry = "replay.tracker.events";
 
     [TestMethod]
+    public void GetEntry_ForFileNameWithStream_ReturnsEntry()
+    {
+        // arrange
+        using FileStream fileStream = File.OpenRead(Path.Join(_mpqDirectory, _replayFile1));
+        using MpqHeroesArchive mpqHeroesArchive = MpqHeroesFile.Open(fileStream);
+
+        // act
+        MpqHeroesArchiveEntry entry = mpqHeroesArchive.GetEntry(_replayDetailsEntry);
+
+        // assert
+        Assert.AreEqual(642u, entry.CompressedSize);
+    }
+
+    [TestMethod]
     public void GetEntry_ForFileName_ReturnsEntry()
     {
         // arrange

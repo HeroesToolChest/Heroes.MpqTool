@@ -6,20 +6,20 @@
 public static class MpqHeroesFile
 {
     /// <summary>
-    /// Opens an mpq file.
+    /// Opens an MPQ file.
     /// </summary>
-    /// <param name="fileName">The file name or path to the mpq file.</param>
+    /// <param name="path">The path to the MPQ file.</param>
     /// <returns>An <see cref="MpqHeroesArchive"/>.</returns>
-    /// <exception cref="ArgumentException"><paramref name="fileName"/> cannot be <see langword="null"/> or empty.</exception>
-    public static MpqHeroesArchive Open(string fileName)
+    /// <exception cref="ArgumentException"><paramref name="path"/> cannot be <see langword="null"/> or empty.</exception>
+    public static MpqHeroesArchive Open(string path)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
         FileStream? fileStream = null;
 
         try
         {
-            fileStream = new FileStream(fileName, FileMode.Open, FileAccess.Read, FileShare.Read, 0x1000, false);
+            fileStream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 0x1000, false);
             return new MpqHeroesArchive(fileStream);
         }
         catch
@@ -30,9 +30,9 @@ public static class MpqHeroesFile
     }
 
     /// <summary>
-    /// Opens an mpq file.
+    /// Opens an MPQ file.
     /// </summary>
-    /// <param name="stream">A <see cref="Stream"/> of a mpq file.</param>
+    /// <param name="stream">A <see cref="Stream"/> of a MPQ file.</param>
     /// <returns>An <see cref="MpqHeroesArchive"/>.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="stream"/> is <see langword="null"/>.</exception>
     public static MpqHeroesArchive Open(Stream stream)

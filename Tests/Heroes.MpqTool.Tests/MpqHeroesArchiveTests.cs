@@ -230,7 +230,7 @@ public class MpqHeroesArchiveTests
         mpqHeroesArchive.GetHeaderBytes(buffer);
 
         // assert
-        Assert.AreEqual(256, buffer.Length);
+        Assert.HasCount(256, buffer);
         Assert.AreEqual(77, buffer[0]);
     }
 
@@ -245,5 +245,85 @@ public class MpqHeroesArchiveTests
 
         // assert
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(Action);
+    }
+
+    [TestMethod]
+    public void GetEntry_WithNormalizeSlashes_ForwardSlashEqualsBackslash()
+    {
+        // arrange
+        string entryToLookup = "Base.StormData\\GameData\\WaterData.xml";
+
+        using MpqHeroesArchive mpqHeroesArchive = MpqHeroesFile.Open(Path.Join(_mpqDirectory, _s2maFile1));
+
+        // act
+        MpqHeroesArchiveEntry entryBackslash = mpqHeroesArchive.GetEntry(entryToLookup);
+        MpqHeroesArchiveEntry entryForwardSlash = mpqHeroesArchive.GetEntry(entryToLookup.Replace('\\', '/'), normalizeSlashes: true);
+
+        // assert
+        Assert.AreEqual(entryBackslash.FileName, entryForwardSlash.FileName);
+    }
+
+    [TestMethod]
+    public void GetEntry_WithNormalizeSlashesFalse_ForwardSlashThrowsException()
+    {
+        // arrange
+        string entryToLookup = "Base.StormData\\GameData\\WaterData.xml";
+
+        using MpqHeroesArchive mpqHeroesArchive = MpqHeroesFile.Open(Path.Join(_mpqDirectory, _s2maFile1));
+
+        // act
+        object? Action() => mpqHeroesArchive.GetEntry(entryToLookup.Replace('\\', '/'), normalizeSlashes: false);
+
+        // assert
+        Assert.ThrowsExactly<FileNotFoundException>(Action);
+    }
+
+    [TestMethod]
+    public void TryGetEntry_WithNormalizeSlashes_ForwardSlashEqualsBackslash()
+    {
+        // arrange
+        string entryToLookup = "Base.StormData\\GameData\\WaterData.xml";
+
+        using MpqHeroesArchive mpqHeroesArchive = MpqHeroesFile.Open(Path.Join(_mpqDirectory, _s2maFile1));
+
+        // act
+        bool result = mpqHeroesArchive.TryGetEntry(entryToLookup.Replace('\\', '/'), out MpqHeroesArchiveEntry? entry, normalizeSlashes: true);
+
+        // assert
+        Assert.IsTrue(result);
+        Assert.IsNotNull(entry);
+    }
+
+    [TestMethod]
+    public void TryGetEntry_WithNormalizeSlashesFalse_ForwardSlashReturnsNoEntry()
+    {
+        // arrange
+        string entryToLookup = "Base.StormData\\GameData\\WaterData.xml";
+
+        using MpqHeroesArchive mpqHeroesArchive = MpqHeroesFile.Open(Path.Join(_mpqDirectory, _s2maFile1));
+
+        // act
+        bool result = mpqHeroesArchive.TryGetEntry(entryToLookup.Replace('\\', '/'), out MpqHeroesArchiveEntry? entry, normalizeSlashes: false);
+
+        // assert
+        Assert.IsFalse(result);
+        Assert.IsNull(entry);
+    }
+
+    [TestMethod]
+    public void FileEntryExists_WithNormalizeSlashes_ForwardSlashEqualsBackslash()
+    {
+        // arrange
+        string entryToLookup = "Base.StormData\\GameData\\WaterData.xml";
+
+        using MpqHeroesArchive mpqHeroesArchive = MpqHeroesFile.Open(Path.Join(_mpqDirectory, _s2maFile1));
+
+        // act
+        bool resultNormalized = mpqHeroesArchive.FileEntryExists(entryToLookup.Replace('\\', '/'), normalizeSlashes: true);
+        bool resultNotNormalized = mpqHeroesArchive.FileEntryExists(entryToLookup.Replace('\\', '/'), normalizeSlashes: false);
+
+        // assert
+        Assert.IsTrue(resultNormalized);
+        Assert.IsFalse(resultNotNormalized);
     }
 }

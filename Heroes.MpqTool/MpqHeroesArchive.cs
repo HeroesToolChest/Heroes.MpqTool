@@ -89,22 +89,24 @@ public class MpqHeroesArchive : IDisposable
     /// Gets a <see cref="MpqHeroesArchiveEntry"/> by its file name.
     /// </summary>
     /// <param name="fileName">The name of the archive entry. Is case-insensitive.</param>
+    /// <param name="normalizeSlashes">If <see langword="true"/>, replaces <c>/</c> with <c>\</c> before lookup.</param>
     /// <returns>An <see cref="MpqHeroesArchiveEntry"/>.</returns>
     /// <exception cref="FileNotFoundException">The <paramref name="fileName"/> was not found.</exception>
-    public MpqHeroesArchiveEntry GetEntry(string fileName)
+    public MpqHeroesArchiveEntry GetEntry(string fileName, bool normalizeSlashes = false)
     {
-        return GetEntry(fileName.AsSpan());
+        return GetEntry(fileName.AsSpan(), normalizeSlashes);
     }
 
     /// <summary>
     /// Gets a <see cref="MpqHeroesArchiveEntry"/> by its file name.
     /// </summary>
     /// <param name="fileName">The name of the archive entry. Is case-insensitive.</param>
+    /// <param name="normalizeSlashes">If <see langword="true"/>, replaces <c>/</c> with <c>\</c> before lookup.</param>
     /// <returns>An <see cref="MpqHeroesArchiveEntry"/>.</returns>
     /// <exception cref="FileNotFoundException">The <paramref name="fileName"/> was not found.</exception>
-    public MpqHeroesArchiveEntry GetEntry(ReadOnlySpan<char> fileName)
+    public MpqHeroesArchiveEntry GetEntry(ReadOnlySpan<char> fileName, bool normalizeSlashes = false)
     {
-        if (!TryGetEntry(fileName, out MpqHeroesArchiveEntry? entry))
+        if (!TryGetEntry(fileName, out MpqHeroesArchiveEntry? entry, normalizeSlashes))
             throw new FileNotFoundException("File not found", fileName.ToString());
 
         return entry.Value;
@@ -115,10 +117,11 @@ public class MpqHeroesArchive : IDisposable
     /// </summary>
     /// <param name="fileName">The name of the archive entry. Is case-insensitive.</param>
     /// <param name="mpqHeroesArchiveEntry">When this method returns, contains the <see cref="MpqHeroesArchiveEntry"/>.</param>
+    /// <param name="normalizeSlashes">If <see langword="true"/>, replaces <c>/</c> with <c>\</c> before lookup.</param>
     /// <returns><see langword="true"/> if the value was found; otherwise <see langword="false"/>.</returns>
-    public bool TryGetEntry(string fileName, [NotNullWhen(true)] out MpqHeroesArchiveEntry? mpqHeroesArchiveEntry)
+    public bool TryGetEntry(string fileName, [NotNullWhen(true)] out MpqHeroesArchiveEntry? mpqHeroesArchiveEntry, bool normalizeSlashes = false)
     {
-        return TryGetEntry(fileName.AsSpan(), out mpqHeroesArchiveEntry);
+        return TryGetEntry(fileName.AsSpan(), out mpqHeroesArchiveEntry, normalizeSlashes);
     }
 
     /// <summary>
@@ -126,12 +129,13 @@ public class MpqHeroesArchive : IDisposable
     /// </summary>
     /// <param name="fileName">The name of the archive entry. Is case-insensitive.</param>
     /// <param name="mpqHeroesArchiveEntry">When this method returns, contains the <see cref="MpqHeroesArchiveEntry"/>.</param>
+    /// <param name="normalizeSlashes">If <see langword="true"/>, replaces <c>/</c> with <c>\</c> before lookup.</param>
     /// <returns><see langword="true"/> if the value was found; otherwise <see langword="false"/>.</returns>
-    public bool TryGetEntry(ReadOnlySpan<char> fileName, [NotNullWhen(true)] out MpqHeroesArchiveEntry? mpqHeroesArchiveEntry)
+    public bool TryGetEntry(ReadOnlySpan<char> fileName, [NotNullWhen(true)] out MpqHeroesArchiveEntry? mpqHeroesArchiveEntry, bool normalizeSlashes = false)
     {
         mpqHeroesArchiveEntry = null;
 
-        if (!TryGetHashEntry(fileName, out MpqHash hash))
+        if (!TryGetHashEntry(fileName, out MpqHash hash, normalizeSlashes))
             return false;
 
         MpqHeroesArchiveEntry entry = _mpqArchiveEntries[hash.BlockIndex];
@@ -145,15 +149,17 @@ public class MpqHeroesArchive : IDisposable
     /// Checks if the entry exist.
     /// </summary>
     /// <param name="fileName">The name of the archive entry. Is case-insensitive.</param>
+    /// <param name="normalizeSlashes">If <see langword="true"/>, replaces <c>/</c> with <c>\</c> before lookup.</param>
     /// <returns><see langword="true"/> if the entry exists, otherwise returns <see langword="false"/>.</returns>
-    public bool FileEntryExists(string fileName) => FileEntryExists(fileName.AsSpan());
+    public bool FileEntryExists(string fileName, bool normalizeSlashes = false) => FileEntryExists(fileName.AsSpan(), normalizeSlashes);
 
     /// <summary>
     /// Checks if the entry exist.
     /// </summary>
     /// <param name="fileName">The name of the archive entry. Is case-insensitive.</param>
+    /// <param name="normalizeSlashes">If <see langword="true"/>, replaces <c>/</c> with <c>\</c> before lookup.</param>
     /// <returns><see langword="true"/> if the entry exists, otherwise returns <see langword="false"/>.</returns>
-    public bool FileEntryExists(ReadOnlySpan<char> fileName) => TryGetHashEntry(fileName, out _);
+    public bool FileEntryExists(ReadOnlySpan<char> fileName, bool normalizeSlashes = false) => TryGetHashEntry(fileName, out _, normalizeSlashes);
 
     /// <inheritdoc/>
     public void Dispose()
@@ -251,14 +257,19 @@ public class MpqHeroesArchive : IDisposable
         return stream;
     }
 
-    internal static uint HashString(ReadOnlySpan<char> input, int offset)
+    internal static uint HashString(ReadOnlySpan<char> input, int offset, bool normalizeSlashes = false)
     {
         uint seed1 = 0x7fed7fed;
         uint seed2 = 0xeeeeeeee;
 
         for (int i = 0; i < input.Length; i++)
         {
-            char c = char.ToUpperInvariant(input[i]);
+            char c = input[i];
+
+            if (normalizeSlashes && c == '/')
+                c = '\\';
+
+            c = char.ToUpperInvariant(c);
             seed1 = _stormBuffer[offset + c] ^ seed1 + seed2;
             seed2 = c + seed1 + seed2 + (seed2 << 5) + 3;
         }
@@ -594,12 +605,12 @@ public class MpqHeroesArchive : IDisposable
         return expectedLength;
     }
 
-    private bool TryGetHashEntry(ReadOnlySpan<char> filename, out MpqHash hash)
+    private bool TryGetHashEntry(ReadOnlySpan<char> filename, out MpqHash hash, bool normalizeSlashes = false)
     {
-        uint index = HashString(filename, 0);
+        uint index = HashString(filename, 0, normalizeSlashes);
         index &= _mpqHeader.HashTableSize - 1;
-        uint name1 = HashString(filename, 0x100);
-        uint name2 = HashString(filename, 0x200);
+        uint name1 = HashString(filename, 0x100, normalizeSlashes);
+        uint name2 = HashString(filename, 0x200, normalizeSlashes);
 
         for (uint i = index; i < _mpqHashes.Length; ++i)
         {

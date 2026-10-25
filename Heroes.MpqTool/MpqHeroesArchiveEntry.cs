@@ -5,21 +5,17 @@
 /// </summary>
 public struct MpqHeroesArchiveEntry
 {
-    internal const uint Size = 16;
-
     private readonly uint _fileOffset; // Relative to the header offset
 
-    private string? _fileName;
-
-    internal MpqHeroesArchiveEntry(ref BitReader bitReaderStruct, uint headerOffset)
+    // blockTableEntry is the four values of the entry in the decrypted block table.
+    internal MpqHeroesArchiveEntry(ReadOnlySpan<uint> blockTableEntry, uint headerOffset)
     {
-        _fileOffset = bitReaderStruct.ReadUInt32Aligned();
+        _fileOffset = blockTableEntry[0];
         FilePosition = headerOffset + _fileOffset;
-        CompressedSize = bitReaderStruct.ReadUInt32Aligned();
-        FileSize = bitReaderStruct.ReadUInt32Aligned();
-        Flags = (MpqFileFlags)bitReaderStruct.ReadUInt32Aligned();
-        EncryptionSeed = 0;
-        _fileName = null;
+        CompressedSize = blockTableEntry[1];
+        FileSize = blockTableEntry[2];
+        Flags = (MpqFileFlags)blockTableEntry[3];
+        FileName = null;
     }
 
     /// <summary>
@@ -38,26 +34,14 @@ public struct MpqHeroesArchiveEntry
     public MpqFileFlags Flags { get; }
 
     /// <summary>
-    /// Gets the encryption seed.
+    /// Gets the encryption seed. It is derived from the <see cref="FileName"/>, so it is 0 when the name is unknown.
     /// </summary>
-    public uint EncryptionSeed { get; internal set; }
+    public readonly uint EncryptionSeed => CalculateEncryptionSeed();
 
     /// <summary>
     /// Gets the name of the entry.
     /// </summary>
-    public string? FileName
-    {
-        readonly get
-        {
-            return _fileName;
-        }
-
-        internal set
-        {
-            _fileName = value;
-            EncryptionSeed = CalculateEncryptionSeed();
-        }
-    }
+    public string? FileName { get; internal set; }
 
     /// <summary>
     /// Gets a value indicating whether the entry is encrypted.
@@ -98,7 +82,7 @@ public struct MpqHeroesArchiveEntry
     {
         if (FileName is null) return 0;
 
-        uint seed = MpqHeroesArchive.HashString(Path.GetFileName(FileName), 0x300);
+        uint seed = MpqHeroesArchive.HashString(Path.GetFileName(FileName.AsSpan()), 0x300);
         if ((Flags & MpqFileFlags.BlockOffsetAdjustedKey) == MpqFileFlags.BlockOffsetAdjustedKey)
             seed = (seed + _fileOffset) ^ FileSize;
         return seed;

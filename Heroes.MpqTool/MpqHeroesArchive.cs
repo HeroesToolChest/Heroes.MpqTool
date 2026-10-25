@@ -1,5 +1,7 @@
 ﻿using Heroes.MpqTool.BZip2;
+using System.Buffers;
 using System.IO.Compression;
+using System.Runtime.InteropServices;
 
 namespace Heroes.MpqTool;
 
@@ -14,6 +16,9 @@ public class MpqHeroesArchive : IDisposable
     public const int HeaderSize = 0x100;
 
     private const int MaxStackAllocLimit = 1024;
+
+    // The most compressed bytes read from the stream at once when decompressing a multi-block entry.
+    private const int MaxBlockReadLength = 0x100000;
 
     private static readonly uint[] _stormBuffer = BuildStormBuffer();
 
@@ -33,22 +38,8 @@ public class MpqHeroesArchive : IDisposable
 
         _blockSize = 0x200 << _mpqHeader.BlockSize;
 
-        // LoadHashTable
-        LoadLoadHashTable(stream);
-
-        // LoadEntryTable;
-        int entryBufferLength = (int)(_mpqHeader.BlockTableSize * MpqHeroesArchiveEntry.Size);
-        Span<byte> entryBuffer = entryBufferLength <= MaxStackAllocLimit ? stackalloc byte[entryBufferLength] : new byte[entryBufferLength]; // get the entry table buffer
-        stream.Position = (int)_mpqHeader.BlockTablePos;
-        stream.ReadExactly(entryBuffer);
-
-        DecryptTable(entryBuffer, "(block table)");
-
-        _mpqArchiveEntries = new MpqHeroesArchiveEntry[_mpqHeader.BlockTableSize];
-        BitReader mpqArchivesEntryBitReader = new(entryBuffer, EndianType.LittleEndian);
-
-        for (int i = 0; i < _mpqHeader.BlockTableSize; i++)
-            _mpqArchiveEntries[i] = new MpqHeroesArchiveEntry(ref mpqArchivesEntryBitReader, (uint)_mpqHeader.HeaderOffset);
+        LoadHashTable(stream);
+        _mpqArchiveEntries = LoadEntryTable(stream);
 
         AddListfileFileNames();
     }
@@ -178,54 +169,14 @@ public class MpqHeroesArchive : IDisposable
     {
         if (mpqArchiveEntry.IsCompressed && !mpqArchiveEntry.IsSingleUnit)
         {
-            int blockPositionCount = (int)((mpqArchiveEntry.FileSize + _blockSize - 1) / _blockSize) + 1;
-
-            // Files with metadata have an extra block containing block checksums
-            if ((mpqArchiveEntry.Flags & MpqFileFlags.FileHasMetadata) != 0)
-                blockPositionCount++;
-
-            int blockPositionByteLength = 4 * blockPositionCount;
-            Span<uint> blockPositionsUint = blockPositionCount <= MaxStackAllocLimit ? stackalloc uint[blockPositionCount] : new uint[blockPositionCount];
-            Span<byte> blockPositionByte = blockPositionByteLength <= MaxStackAllocLimit ? stackalloc byte[blockPositionByteLength] : new byte[blockPositionByteLength];
-
-            _archiveStream.Seek(mpqArchiveEntry.FilePosition, SeekOrigin.Begin);
-            _archiveStream.ReadExactly(blockPositionByte);
-
-            SetBlockPositions(blockPositionByte, blockPositionsUint, blockPositionCount);
-
             if (mpqArchiveEntry.IsEncrypted)
-            {
                 throw new MpqHeroesToolException("The entry is encrypted.");
-            }
 
-            int toRead = (int)mpqArchiveEntry.FileSize;
-            int offset = 0;
-            int position = 0;
-
-            while (toRead > offset)
-            {
-                int sizeOfBlock = LoadBlockPositions(mpqArchiveEntry, blockPositionsUint, position, buffer[offset..]);
-
-                if (sizeOfBlock < 1)
-                    break;
-
-                offset += sizeOfBlock;
-                position = offset / _blockSize;
-            }
+            DecompressBlocks(mpqArchiveEntry, buffer);
         }
         else
         {
-            _archiveStream.Position = mpqArchiveEntry.FilePosition;
-
-            int read = _archiveStream.Read(buffer[..(int)mpqArchiveEntry.CompressedSize]);
-
-            if (read != mpqArchiveEntry.CompressedSize)
-                throw new MpqHeroesToolException("Insufficient data or invalid data length");
-
-            if (mpqArchiveEntry.CompressedSize != mpqArchiveEntry.FileSize)
-            {
-                DecompressByteData(buffer);
-            }
+            DecompressSingleUnit(mpqArchiveEntry, buffer);
         }
     }
 
@@ -233,28 +184,16 @@ public class MpqHeroesArchive : IDisposable
     /// Decompresses an <see cref="MpqHeroesArchiveEntry"/> and returns it as a stream.
     /// </summary>
     /// <param name="mpqArchiveEntry">The <see cref="MpqHeroesArchiveEntry"/> to decompress.</param>
-    /// <returns>A stream of the contents of the entry.</returns>
+    /// <returns>A read-only stream of the contents of the entry.</returns>
     public Stream DecompressEntry(MpqHeroesArchiveEntry mpqArchiveEntry)
     {
-        int size = (int)mpqArchiveEntry.FileSize;
+        // DecompressEntry writes every byte of the buffer (or throws), so it doesn't need zeroing first.
+        byte[] buffer = GC.AllocateUninitializedArray<byte>((int)mpqArchiveEntry.FileSize);
 
-        if (size > MaxStackAllocLimit)
-        {
-            byte[] buffer = new byte[size];
+        DecompressEntry(mpqArchiveEntry, buffer);
 
-            DecompressEntry(mpqArchiveEntry, buffer);
-
-            return new MemoryStream(buffer, writable: false);
-        }
-
-        Span<byte> stackBuffer = stackalloc byte[size];
-        DecompressEntry(mpqArchiveEntry, stackBuffer);
-
-        MemoryStream stream = new();
-        stream.Write(stackBuffer);
-        stream.Position = 0;
-
-        return stream;
+        // publiclyVisible lets callers get the underlying buffer with TryGetBuffer instead of copying it.
+        return new MemoryStream(buffer, 0, buffer.Length, writable: false, publiclyVisible: true);
     }
 
     internal static uint HashString(ReadOnlySpan<char> input, int offset, bool normalizeSlashes = false)
@@ -277,7 +216,7 @@ public class MpqHeroesArchive : IDisposable
         return seed1;
     }
 
-    internal static void DecryptBlock(uint[] data, uint seed1)
+    internal static void DecryptBlock(Span<uint> data, uint seed1)
     {
         uint seed2 = 0xeeeeeeee;
 
@@ -363,50 +302,68 @@ public class MpqHeroesArchive : IDisposable
         return result;
     }
 
-    private static void DecryptBlock(Span<byte> data, uint seed1)
+    // Computes the hash table index and the two name hashes of a file name in a single pass.
+    // Gives the same results as HashString with offsets 0, 0x100 and 0x200.
+    private static (uint Index, uint Name1, uint Name2) HashFileName(ReadOnlySpan<char> fileName, bool normalizeSlashes)
     {
-        uint seed2 = 0xeeeeeeee;
+        ReadOnlySpan<uint> stormBuffer = _stormBuffer;
 
-        // NB: If the block is not an even multiple of 4,
-        // the remainder is not encrypted
-        for (int i = 0; i < data.Length - 3; i += 4)
+        uint indexSeed1 = 0x7fed7fed;
+        uint indexSeed2 = 0xeeeeeeee;
+        uint name1Seed1 = 0x7fed7fed;
+        uint name1Seed2 = 0xeeeeeeee;
+        uint name2Seed1 = 0x7fed7fed;
+        uint name2Seed2 = 0xeeeeeeee;
+
+        foreach (char ch in fileName)
         {
-            seed2 += _stormBuffer[0x400 + (seed1 & 0xff)];
+            char c = normalizeSlashes && ch == '/' ? '\\' : ch;
+            c = char.ToUpperInvariant(c);
 
-            uint result = BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(i, 4));
+            indexSeed1 = stormBuffer[c] ^ (indexSeed1 + indexSeed2);
+            indexSeed2 = c + indexSeed1 + indexSeed2 + (indexSeed2 << 5) + 3;
 
-            result ^= seed1 + seed2;
+            name1Seed1 = stormBuffer[0x100 + c] ^ (name1Seed1 + name1Seed2);
+            name1Seed2 = c + name1Seed1 + name1Seed2 + (name1Seed2 << 5) + 3;
 
-            seed1 = ((~seed1 << 21) + 0x11111111) | (seed1 >> 11);
-            seed2 = result + seed2 + (seed2 << 5) + 3;
-
-            data[i + 0] = (byte)(result & 0xff);
-            data[i + 1] = (byte)((result >> 8) & 0xff);
-            data[i + 2] = (byte)((result >> 16) & 0xff);
-            data[i + 3] = (byte)((result >> 24) & 0xff);
+            name2Seed1 = stormBuffer[0x200 + c] ^ (name2Seed1 + name2Seed2);
+            name2Seed2 = c + name2Seed1 + name2Seed2 + (name2Seed2 << 5) + 3;
         }
+
+        return (indexSeed1, name1Seed1, name2Seed1);
     }
 
-    private static void DecryptTable(Span<byte> data, string key)
+    // Reads an encrypted table (the hash table or block table) and decrypts it in place.
+    private static void ReadTable(Stream stream, long position, Span<uint> table, string key)
     {
-        DecryptBlock(data, HashString(key, 0x300));
+        stream.Position = position;
+        stream.ReadExactly(MemoryMarshal.AsBytes(table));
+
+        if (!BitConverter.IsLittleEndian)
+            BinaryPrimitives.ReverseEndianness(table, table);
+
+        DecryptBlock(table, HashString(key, 0x300));
     }
 
-    private static void DecompressByteData(Span<byte> buffer)
+    // source[offset] is the compression type and the compressed data follows it.
+    private static void DecompressByteData(byte[] source, int offset, int length, Span<byte> destination)
     {
-        byte compressionType = buffer[0];
+        if (length < 1)
+            throw new MpqHeroesToolException("Insufficient data or invalid data length");
+
+        byte compressionType = source[offset];
 
         switch (compressionType)
         {
             case 1: // Huffman
                 throw new MpqHeroesToolException("Huffman not yet supported");
             case 2: // ZLib/Deflate
-                ZlibDecompress(buffer);
+                ZlibDecompress(source, offset + 1, length - 1, destination);
                 break;
             case 8: // PKLib/Impode
                 throw new MpqHeroesToolException("PKLib/Impode not yet supported");
             case 0x10:
-                BZip2Decompress(buffer);
+                BZip2Decompress(source, offset + 1, length - 1, destination);
                 break;
             case 0x80: // IMA ADPCM Stereo
                 throw new MpqHeroesToolException("IMA ADPCM Stereo not yet supported");
@@ -433,46 +390,20 @@ public class MpqHeroesArchive : IDisposable
         }
     }
 
-    private static void BZip2Decompress(Span<byte> buffer)
+    private static void BZip2Decompress(byte[] source, int offset, int count, Span<byte> destination)
     {
-        using MemoryStream memoryStream = new();
-        memoryStream.Write(buffer[1..]);
-        memoryStream.Position = 0;
-
+        using MemoryStream memoryStream = new(source, offset, count, writable: false);
         using BZip2InputStream stream = new(memoryStream);
 
-        stream.ReadExactly(buffer);
+        stream.ReadExactly(destination);
     }
 
-    private static void ZlibDecompress(Span<byte> buffer)
+    private static void ZlibDecompress(byte[] source, int offset, int count, Span<byte> destination)
     {
-        using MemoryStream memoryStream = new();
-        memoryStream.Write(buffer[1..]);
-        memoryStream.Position = 0;
-
+        using MemoryStream memoryStream = new(source, offset, count, writable: false);
         using ZLibStream stream = new(memoryStream, CompressionMode.Decompress, false);
 
-        stream.ReadExactly(buffer);
-    }
-
-    private static void SetBlockPositions(ReadOnlySpan<byte> source, Span<uint> blockPositions, int blockPositionCount)
-    {
-        BitReader bitReader = new(source, EndianType.LittleEndian);
-
-        for (int i = 0; i < blockPositionCount; i++)
-        {
-            blockPositions[i] = bitReader.ReadUInt32Aligned();
-        }
-    }
-
-    private static string GetFileName(ReadOnlySpan<byte> source, int startIndex, ref int index, byte charByte)
-    {
-        string fileName = Encoding.UTF8.GetString(source[startIndex..index]);
-
-        if (charByte == 13 && index + 1 < source.Length && source[index + 1] == 10)
-            index++;
-
-        return fileName;
+        stream.ReadExactly(destination);
     }
 
     [MemberNotNull(nameof(_mpqHeader))]
@@ -490,143 +421,252 @@ public class MpqHeroesArchive : IDisposable
     }
 
     [MemberNotNull(nameof(_mpqHashes))]
-    private void LoadLoadHashTable(Stream stream)
+    private void LoadHashTable(Stream stream)
     {
-        int hashBufferLength = (int)(_mpqHeader.HashTableSize * MpqHash.Size);
-        Span<byte> hashBuffer = hashBufferLength <= MaxStackAllocLimit ? stackalloc byte[hashBufferLength] : new byte[hashBufferLength]; // get the hash table buffer
-
-        stream.Position = (int)_mpqHeader.HashTablePos;
-        stream.ReadExactly(hashBuffer);
-
-        DecryptTable(hashBuffer, "(hash table)");
-
         _mpqHashes = new MpqHash[_mpqHeader.HashTableSize];
 
-        BitReader mpqHashesBitReader = new(hashBuffer, EndianType.LittleEndian);
+        ReadTable(stream, _mpqHeader.HashTablePos, MemoryMarshal.Cast<MpqHash, uint>(_mpqHashes.AsSpan()), "(hash table)");
+    }
 
-        for (int i = 0; i < _mpqHeader.HashTableSize; i++)
-            _mpqHashes[i] = new MpqHash(ref mpqHashesBitReader);
+    private MpqHeroesArchiveEntry[] LoadEntryTable(Stream stream)
+    {
+        int entryCount = (int)_mpqHeader.BlockTableSize;
+        int tableLength = entryCount * 4; // four uints per entry
+
+        uint[]? rentedTable = null;
+        Span<uint> table = tableLength <= MaxStackAllocLimit / sizeof(uint)
+            ? stackalloc uint[MaxStackAllocLimit / sizeof(uint)]
+            : (rentedTable = ArrayPool<uint>.Shared.Rent(tableLength));
+
+        table = table[..tableLength];
+
+        try
+        {
+            ReadTable(stream, _mpqHeader.BlockTablePos, table, "(block table)");
+
+            MpqHeroesArchiveEntry[] entries = new MpqHeroesArchiveEntry[entryCount];
+            uint headerOffset = (uint)_mpqHeader.HeaderOffset;
+
+            for (int i = 0; i < entries.Length; i++)
+                entries[i] = new MpqHeroesArchiveEntry(table.Slice(i * 4, 4), headerOffset);
+
+            return entries;
+        }
+        finally
+        {
+            if (rentedTable is not null)
+                ArrayPool<uint>.Shared.Return(rentedTable);
+        }
     }
 
     private void AddListfileFileNames()
     {
-        if (!AddFileName("(listfile)"))
+        const string listfileName = "(listfile)";
+
+        if (!TryGetHashEntry(listfileName, out MpqHash hash))
             return;
 
-        MpqHeroesArchiveEntry entry = GetEntry("(listfile)");
+        ref MpqHeroesArchiveEntry listfileEntry = ref _mpqArchiveEntries[hash.BlockIndex];
+        listfileEntry.FileName = listfileName;
 
-        Span<byte> buffer = entry.FileSize <= MaxStackAllocLimit ? stackalloc byte[(int)entry.FileSize] : new byte[(int)entry.FileSize];
-        DecompressEntry(entry, buffer);
+        int size = (int)listfileEntry.FileSize;
 
-        AddFileNames(buffer);
+        byte[]? rentedBuffer = null;
+        Span<byte> buffer = size <= MaxStackAllocLimit
+            ? stackalloc byte[MaxStackAllocLimit]
+            : (rentedBuffer = ArrayPool<byte>.Shared.Rent(size));
+        buffer = buffer[..size];
+
+        try
+        {
+            DecompressEntry(listfileEntry, buffer);
+            AddFileNames(buffer);
+        }
+        finally
+        {
+            if (rentedBuffer is not null)
+                ArrayPool<byte>.Shared.Return(rentedBuffer);
+        }
     }
 
+    // Each line of the listfile is a file name. Lines end with \n (Unix), \r\n (DOS) or \r (Mac).
     private void AddFileNames(ReadOnlySpan<byte> source)
     {
-        int startIndex = 0;
-        int index = 0;
-
-        do
+        while (!source.IsEmpty)
         {
-            byte charByte = source[index];
+            int lineLength = source.IndexOfAny((byte)'\r', (byte)'\n');
 
-            // \n - UNIX   \r\n - DOS   \r - Mac
-            if (charByte == 10 || charByte == 13)
+            if (lineLength < 0)
             {
-                string fileName = GetFileName(source, startIndex, ref index, charByte);
-
-                index++;
-
-                AddFileName(fileName);
-                startIndex = index;
+                AddFileName(Encoding.UTF8.GetString(source));
+                break;
             }
 
-            index++;
+            if (lineLength > 0)
+                AddFileName(Encoding.UTF8.GetString(source[..lineLength]));
+
+            int nextLine = lineLength + 1;
+
+            if (source[lineLength] == '\r' && nextLine < source.Length && source[nextLine] == '\n')
+                nextLine++;
+
+            source = source[nextLine..];
         }
-        while (index < source.Length);
     }
 
-    private bool AddFileName(string fileName)
+    private void AddFileName(string fileName)
     {
-        if (!TryGetHashEntry(fileName, out MpqHash hash)) return false;
-
-        _mpqArchiveEntries[hash.BlockIndex].FileName = fileName;
-        return true;
+        if (TryGetHashEntry(fileName, out MpqHash hash))
+            _mpqArchiveEntries[hash.BlockIndex].FileName = fileName;
     }
 
-    private int LoadBlockPositions(MpqHeroesArchiveEntry mpqArchiveEntry, ReadOnlySpan<uint> blockPositions, int position, Span<byte> buffer)
+    private void DecompressSingleUnit(MpqHeroesArchiveEntry mpqArchiveEntry, Span<byte> buffer)
     {
-        int expectedlength = (int)Math.Min(mpqArchiveEntry.FileSize - (position * _blockSize), _blockSize);
-        if (expectedlength < 1)
-            return 0;
+        int compressedSize = (int)mpqArchiveEntry.CompressedSize;
 
-        return LoadBlock(mpqArchiveEntry, blockPositions, position, expectedlength, buffer);
+        // stored as is
+        if (mpqArchiveEntry.CompressedSize == mpqArchiveEntry.FileSize)
+        {
+            ReadSingleUnit(mpqArchiveEntry, buffer[..compressedSize]);
+            return;
+        }
+
+        // The compressed data is read into its own buffer so it can be decompressed straight into the destination.
+        byte[] compressed = ArrayPool<byte>.Shared.Rent(compressedSize);
+
+        try
+        {
+            ReadSingleUnit(mpqArchiveEntry, compressed.AsSpan(0, compressedSize));
+            DecompressByteData(compressed, 0, compressedSize, buffer[..Math.Min(buffer.Length, (int)mpqArchiveEntry.FileSize)]);
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(compressed);
+        }
     }
 
-    private int LoadBlock(MpqHeroesArchiveEntry mpqArchiveEntry, ReadOnlySpan<uint> blockPositions, int blockIndex, int expectedLength, Span<byte> buffer)
+    private void ReadSingleUnit(MpqHeroesArchiveEntry mpqArchiveEntry, Span<byte> buffer)
     {
-        uint offset;
-        int toRead;
-        uint encryptionSeed;
+        _archiveStream.Position = mpqArchiveEntry.FilePosition;
 
-        if (mpqArchiveEntry.IsCompressed)
-        {
-            offset = blockPositions[blockIndex];
-            toRead = (int)(blockPositions[blockIndex + 1] - offset);
-        }
-        else
-        {
-            offset = (uint)(blockIndex * _blockSize);
-            toRead = expectedLength;
-        }
-
-        offset += mpqArchiveEntry.FilePosition;
-
-        _archiveStream.Seek(offset, SeekOrigin.Begin);
-        _archiveStream.ReadExactly(buffer[..toRead]);
-
-        if (mpqArchiveEntry.IsEncrypted && mpqArchiveEntry.FileSize > 3)
-        {
-            if (mpqArchiveEntry.EncryptionSeed == 0)
-                throw new MpqHeroesToolException("Unable to determine encryption key");
-
-            encryptionSeed = (uint)(blockIndex + mpqArchiveEntry.EncryptionSeed);
-            DecryptBlock(buffer[..expectedLength], encryptionSeed);
-        }
-
-        if (mpqArchiveEntry.IsCompressed && toRead != expectedLength)
-        {
-            if ((mpqArchiveEntry.Flags & MpqFileFlags.CompressedMulti) != 0)
-                DecompressByteData(buffer[..expectedLength]);
-            else
-                throw new MpqHeroesToolException("Non-single unit must be decompresssed using pk");
-        }
-
-        return expectedLength;
+        if (_archiveStream.ReadAtLeast(buffer, buffer.Length, throwOnEndOfStream: false) != buffer.Length)
+            throw new MpqHeroesToolException("Insufficient data or invalid data length");
     }
 
-    private bool TryGetHashEntry(ReadOnlySpan<char> filename, out MpqHash hash, bool normalizeSlashes = false)
+    private void DecompressBlocks(MpqHeroesArchiveEntry mpqArchiveEntry, Span<byte> buffer)
     {
-        uint index = HashString(filename, 0, normalizeSlashes);
-        index &= _mpqHeader.HashTableSize - 1;
-        uint name1 = HashString(filename, 0x100, normalizeSlashes);
-        uint name2 = HashString(filename, 0x200, normalizeSlashes);
+        int fileSize = (int)mpqArchiveEntry.FileSize;
+        int blockCount = (int)((mpqArchiveEntry.FileSize + (long)_blockSize - 1) / _blockSize);
 
-        for (uint i = index; i < _mpqHashes.Length; ++i)
+        if (blockCount == 0)
+            return;
+
+        // The entry starts with a table of block offsets (relative to the entry): the start of each block, then the end of the last one.
+        // Files with metadata have an extra offset after those for a block of checksums, which isn't needed here.
+        int positionCount = blockCount + 1;
+
+        uint[]? rentedPositions = null;
+        Span<uint> blockPositions = positionCount <= MaxStackAllocLimit / sizeof(uint)
+            ? stackalloc uint[MaxStackAllocLimit / sizeof(uint)]
+            : (rentedPositions = ArrayPool<uint>.Shared.Rent(positionCount));
+
+        blockPositions = blockPositions[..positionCount];
+
+        byte[]? compressed = null;
+
+        try
         {
-            hash = _mpqHashes[i];
-            if (hash.Name1 == name1 && hash.Name2 == name2)
-                return true;
+            _archiveStream.Position = mpqArchiveEntry.FilePosition;
+            _archiveStream.ReadExactly(MemoryMarshal.AsBytes(blockPositions));
+
+            if (!BitConverter.IsLittleEndian)
+                BinaryPrimitives.ReverseEndianness(blockPositions, blockPositions);
+
+            uint largestBlock = 0;
+
+            for (int i = 0; i < blockCount; i++)
+            {
+                if (blockPositions[i + 1] < blockPositions[i])
+                    throw new MpqHeroesToolException("Invalid block position table");
+
+                largestBlock = Math.Max(largestBlock, blockPositions[i + 1] - blockPositions[i]);
+            }
+
+            // The blocks are stored back to back, so read as many as fit in the buffer with each read instead of one at a time.
+            uint totalLength = blockPositions[blockCount] - blockPositions[0];
+            compressed = ArrayPool<byte>.Shared.Rent((int)Math.Min(totalLength, Math.Max(MaxBlockReadLength, largestBlock)));
+
+            int block = 0;
+
+            while (block < blockCount)
+            {
+                uint readStart = blockPositions[block];
+                int readEndBlock = block + 1;
+
+                while (readEndBlock < blockCount && blockPositions[readEndBlock + 1] - readStart <= compressed.Length)
+                    readEndBlock++;
+
+                _archiveStream.Position = mpqArchiveEntry.FilePosition + (long)readStart;
+                _archiveStream.ReadExactly(compressed.AsSpan(0, (int)(blockPositions[readEndBlock] - readStart)));
+
+                for (; block < readEndBlock; block++)
+                {
+                    int blockOffset = block * _blockSize;
+                    int expectedLength = Math.Min(fileSize - blockOffset, _blockSize);
+                    int compressedOffset = (int)(blockPositions[block] - readStart);
+                    int compressedLength = (int)(blockPositions[block + 1] - blockPositions[block]);
+                    Span<byte> destination = buffer.Slice(blockOffset, expectedLength);
+
+                    // a block that didn't get smaller when compressed is stored as is
+                    if (compressedLength == expectedLength)
+                        compressed.AsSpan(compressedOffset, compressedLength).CopyTo(destination);
+                    else if ((mpqArchiveEntry.Flags & MpqFileFlags.CompressedMulti) != 0)
+                        DecompressByteData(compressed, compressedOffset, compressedLength, destination);
+                    else
+                        throw new MpqHeroesToolException("Non-single unit must be decompresssed using pk");
+                }
+            }
+        }
+        finally
+        {
+            if (rentedPositions is not null)
+                ArrayPool<uint>.Shared.Return(rentedPositions);
+
+            if (compressed is not null)
+                ArrayPool<byte>.Shared.Return(compressed);
+        }
+    }
+
+    private bool TryGetHashEntry(ReadOnlySpan<char> fileName, out MpqHash hash, bool normalizeSlashes = false)
+    {
+        MpqHash[] hashes = _mpqHashes;
+
+        if (hashes.Length > 0)
+        {
+            (uint index, uint name1, uint name2) = HashFileName(fileName, normalizeSlashes);
+
+            int i = (int)(index & (uint)(hashes.Length - 1));
+
+            // Probe forward from the file's slot, wrapping around. Entries are never stored past an empty slot, so stop there.
+            for (int probed = 0; probed < hashes.Length; probed++)
+            {
+                ref readonly MpqHash candidate = ref hashes[i];
+
+                if (candidate.Name1 == name1 && candidate.Name2 == name2)
+                {
+                    hash = candidate;
+                    return true;
+                }
+
+                if (candidate.BlockIndex == MpqHash.EmptyBlockIndex)
+                    break;
+
+                if (++i == hashes.Length)
+                    i = 0;
+            }
         }
 
-        for (uint i = 0; i < index; i++)
-        {
-            hash = _mpqHashes[i];
-            if (hash.Name1 == name1 && hash.Name2 == name2)
-                return true;
-        }
-
-        hash = new MpqHash(0, 0, 0, 0);
+        hash = default;
         return false;
     }
 }

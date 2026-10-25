@@ -1,30 +1,28 @@
 ﻿namespace Heroes.MpqTool;
 
-internal struct MpqHash
+internal readonly struct MpqHash
 {
-    public const uint Size = 16;
+    // The block index of a hash table slot that has never been used. A lookup stops when it reaches one.
+    public const uint EmptyBlockIndex = 0xFFFFFFFF;
+
+    private readonly uint _name1;
+    private readonly uint _name2;
+    private readonly uint _locale; // Normally 0 or UInt32.MaxValue (0xffffffff)
+    private readonly uint _blockIndex;
 
     public MpqHash(uint name1, uint name2, uint locale, uint blockIndex)
     {
-        Name1 = name1;
-        Name2 = name2;
-        Locale = locale;
-        BlockIndex = blockIndex;
+        _name1 = name1;
+        _name2 = name2;
+        _locale = locale;
+        _blockIndex = blockIndex;
     }
 
-    public MpqHash(ref BitReader bitReaderStruct)
-    {
-        Name1 = bitReaderStruct.ReadUInt32Aligned();
-        Name2 = bitReaderStruct.ReadUInt32Aligned();
-        Locale = bitReaderStruct.ReadUInt32Aligned(); // Normally 0 or UInt32.MaxValue (0xffffffff)
-        BlockIndex = bitReaderStruct.ReadUInt32Aligned();
-    }
+    public uint Name1 => _name1;
 
-    public uint Name1 { get; }
+    public uint Name2 => _name2;
 
-    public uint Name2 { get; }
+    public uint Locale => _locale;
 
-    public uint Locale { get; }
-
-    public uint BlockIndex { get; }
+    public uint BlockIndex => _blockIndex;
 }

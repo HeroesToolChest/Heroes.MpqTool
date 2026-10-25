@@ -363,7 +363,7 @@ public class MpqHeroesArchive : IDisposable
             case 8: // PKLib/Impode
                 throw new MpqHeroesToolException("PKLib/Impode not yet supported");
             case 0x10:
-                BZip2Decompress(source, offset + 1, length - 1, destination);
+                BZip2Decoder.Decompress(source.AsSpan(offset + 1, length - 1), destination);
                 break;
             case 0x80: // IMA ADPCM Stereo
                 throw new MpqHeroesToolException("IMA ADPCM Stereo not yet supported");
@@ -388,14 +388,6 @@ public class MpqHeroesArchive : IDisposable
             default:
                 throw new MpqHeroesToolException("Compression is not yet supported: 0x" + compressionType.ToString("X"));
         }
-    }
-
-    private static void BZip2Decompress(byte[] source, int offset, int count, Span<byte> destination)
-    {
-        using MemoryStream memoryStream = new(source, offset, count, writable: false);
-        using BZip2InputStream stream = new(memoryStream);
-
-        stream.ReadExactly(destination);
     }
 
     private static void ZlibDecompress(byte[] source, int offset, int count, Span<byte> destination)

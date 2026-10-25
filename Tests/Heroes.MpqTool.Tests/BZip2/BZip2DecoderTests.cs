@@ -3,7 +3,7 @@
 namespace Heroes.MpqTool.Tests.BZip2;
 
 [TestClass]
-public class BZip2InputStreamTests
+public class BZip2DecoderTests
 {
     private readonly Random _random;
 
@@ -121,137 +121,227 @@ I have a dream that one day every valley shall be exalted, and every hill and mo
         },
     };
 
-    public BZip2InputStreamTests()
+    public BZip2DecoderTests()
     {
         _random = new Random();
     }
 
     [TestMethod]
-    public void BZBasic()
+    public void Decompress_TextCompressedAtEveryBlockSize_ReturnsOriginal()
     {
-        // select a random text string
-        var line = _testStrings.ElementAt(_random.Next(0, _testStrings.Count)).Value;
-        int n = 4000 + _random.Next(1000); // number of iters
-        var fname = "Pippo.txt";
+        // arrange
+        byte[] original = CreateText();
 
-        // emit many many lines into a text file:
-        using (var sw = new StreamWriter(File.Create(fname)))
+        for (int blockSize = 1; blockSize <= 9; blockSize++)
         {
-            for (int k = 0; k < n; k++)
+            foreach (bool parallel in new[] { false, true })
             {
-                sw.WriteLine(line);
-            }
-        }
+                byte[] compressed = Compress(original, blockSize, parallel);
+                byte[] decompressed = new byte[original.Length];
 
-        int crcOriginal = GetCrc(fname);
-        int blockSize = 0;
+                // act
+                BZip2Decoder.Decompress(compressed, decompressed);
 
-        Func<Stream, Stream>[] getBzStream =
-        {
-            new(s0 =>
-            {
-                var decorator = new Ionic.BZip2.BZip2OutputStream(s0, blockSize);
-                return decorator;
-            }),
-            new(s1 =>
-            {
-                    var decorator = new Ionic.BZip2.ParallelBZip2OutputStream(s1, blockSize);
-                    return decorator;
-            }),
-        };
-
-        int[] blockSizes = { 1, 2, 3, 4, 5, 6, 7, 8, 9 };
-
-        for (int k = 0; k < getBzStream.Length; k++)
-        {
-            for (int m = 0; m < blockSizes.Length; m++)
-            {
-                blockSize = blockSizes[m];
-                var getStream = getBzStream[k];
-                var root = Path.GetFileNameWithoutExtension(fname);
-                var ext = Path.GetExtension(fname);
-
-                // compress into bz2
-                var bzFname = string.Format("{0}.{1}.blocksize{2}{3}.bz2", root, (k == 0) ? "SingleThread" : "MultiThread", blockSize, ext);
-
-                using (var fs = File.OpenRead(fname))
-                {
-                    using var output = File.Create(bzFname);
-                    using var compressor = getStream(output);
-
-                    CopyStream(fs, compressor);
-                }
-
-                // decompress
-                var decompressedFname = Path.GetFileNameWithoutExtension(bzFname);
-                using (Stream fs = File.OpenRead(bzFname),
-                       output = File.Create(decompressedFname),
-                       decompressor = new BZip2InputStream(fs))
-                {
-                    CopyStream(decompressor, output);
-                }
-
-                // check crc
-                int crcDecompressed = GetCrc(decompressedFname);
-                Assert.AreEqual(crcOriginal, crcDecompressed, $"CRC mismatch {crcOriginal:X8} != {crcDecompressed:X8}");
-
-                // just for the sake of disk space economy:
-                File.Delete(decompressedFname);
-                File.Delete(bzFname);
+                // assert
+                Assert.IsTrue(original.AsSpan().SequenceEqual(decompressed), $"Mismatch for block size {blockSize}, parallel {parallel}");
             }
         }
     }
 
     [TestMethod]
-    public void BZError1()
+    public void Decompress_RandomBytes_ReturnsOriginal()
     {
-        using Stream input = File.OpenRead(Path.Join(Directory.GetCurrentDirectory(), "Heroes.MpqTool.Tests.dll"));
+        // arrange
+        // random data gives large move-to-front positions, like the binary data in replays
+        byte[] original = new byte[1_500_000];
+        new Random(5).NextBytes(original);
 
-        Assert.ThrowsExactly<IOException>(() =>
-        {
-            using BZip2InputStream decompressor = new(input);
-        });
+        byte[] compressed = Compress(original, 9, false);
+        byte[] decompressed = new byte[original.Length];
+
+        // act
+        BZip2Decoder.Decompress(compressed, decompressed);
+
+        // assert
+        Assert.IsTrue(original.AsSpan().SequenceEqual(decompressed));
     }
 
     [TestMethod]
-    public void BZError2()
+    public void Decompress_PeriodicBlock_ReturnsOriginal()
     {
-        using Stream input = new MemoryStream();
+        // arrange
+        // A block of a repeating pattern doesn't make one cycle when undoing the Burrows-Wheeler transform.
+        // This is "ab" 300000 times, compressed with bzip2 1.0.8 (bzip2 -9), which (unlike Ionic) doesn't randomise the block.
+        byte[] compressed = Convert.FromBase64String("QlpoOTFBWSZTWZ/z4CUCSe+BADAAIAAwgCkYFVERgVURHF3JFOFCQn/PgJQ=");
+        byte[] original = CreatePeriodicData();
+        byte[] decompressed = new byte[original.Length];
 
-        Assert.ThrowsExactly<IOException>(() =>
-        {
-            using BZip2InputStream decompressor = new(input);
-        });
+        // act
+        BZip2Decoder.Decompress(compressed, decompressed);
+
+        // assert
+        Assert.IsTrue(original.AsSpan().SequenceEqual(decompressed));
     }
 
     [TestMethod]
-    public void BZSamples()
+    public void Decompress_RandomisedBlock_ReturnsOriginal()
     {
-        var files = Directory.GetFiles("BZip2Files");
+        // arrange
+        // Ionic randomises blocks that are slow to sort, like a repeating pattern
+        byte[] original = CreatePeriodicData();
+        byte[] compressed = Compress(original, 9, false);
+        byte[] decompressed = new byte[original.Length];
+
+        // the randomised flag is the top bit after the 4 byte stream header, 6 byte block header, and 4 byte block CRC
+        Assert.AreNotEqual(0, compressed[14] & 0x80, "The block is not randomised");
+
+        // act
+        BZip2Decoder.Decompress(compressed, decompressed);
+
+        // assert
+        Assert.IsTrue(original.AsSpan().SequenceEqual(decompressed));
+    }
+
+    [TestMethod]
+    public void Decompress_DestinationSmallerThanData_FillsDestination()
+    {
+        // arrange
+        byte[] original = CreateText();
+        byte[] compressed = Compress(original, 1, false);
+        byte[] decompressed = new byte[original.Length / 3];
+
+        // act
+        BZip2Decoder.Decompress(compressed, decompressed);
+
+        // assert
+        Assert.IsTrue(original.AsSpan(0, decompressed.Length).SequenceEqual(decompressed));
+    }
+
+    [TestMethod]
+    public void Decompress_DestinationLargerThanData_ThrowsException()
+    {
+        // arrange
+        byte[] original = CreateText();
+        byte[] compressed = Compress(original, 9, false);
+        byte[] decompressed = new byte[original.Length + 1];
+
+        // act / assert
+        Assert.ThrowsExactly<IOException>(() => BZip2Decoder.Decompress(compressed, decompressed));
+    }
+
+    [TestMethod]
+    public void Decompress_TruncatedData_ThrowsException()
+    {
+        // arrange
+        byte[] original = CreateText();
+        byte[] compressed = Compress(original, 9, false);
+        byte[] decompressed = new byte[original.Length];
+
+        // act / assert
+        Assert.ThrowsExactly<IOException>(() => BZip2Decoder.Decompress(compressed.AsSpan(0, compressed.Length / 2), decompressed));
+    }
+
+    [TestMethod]
+    public void Decompress_WrongBlockCrc_ThrowsException()
+    {
+        // arrange
+        byte[] original = CreateText();
+        byte[] compressed = Compress(original, 9, false);
+        byte[] decompressed = new byte[original.Length];
+
+        // the first block's CRC follows the 4 byte stream header and 6 byte block header
+        compressed[10] ^= 0xFF;
+
+        // act / assert
+        Assert.ThrowsExactly<IOException>(() => BZip2Decoder.Decompress(compressed, decompressed));
+    }
+
+    [TestMethod]
+    public void Decompress_NotBZip2Data_ThrowsException()
+    {
+        // arrange
+        byte[] notBZip2 = File.ReadAllBytes(Path.Join(Directory.GetCurrentDirectory(), "Heroes.MpqTool.Tests.dll"));
+
+        // act / assert
+        Assert.ThrowsExactly<IOException>(() => BZip2Decoder.Decompress(notBZip2, new byte[100]));
+    }
+
+    [TestMethod]
+    public void Decompress_EmptyData_ThrowsException()
+    {
+        // act / assert
+        Assert.ThrowsExactly<IOException>(() => BZip2Decoder.Decompress([], new byte[100]));
+    }
+
+    [TestMethod]
+    public void Decompress_SampleFiles_MatchesIonicDecompression()
+    {
+        // arrange
+        string[] files = Directory.GetFiles("BZip2Files");
 
         Assert.IsGreaterThan(2, files.Length, "There are not enough sample files");
 
-        foreach (var filename in files)
+        foreach (string filename in files)
         {
-            using var fs = File.OpenRead(filename);
-            using var decompressor = new BZip2InputStream(fs);
+            byte[] compressed = File.ReadAllBytes(filename);
+            byte[] expected = DecompressWithIonic(compressed);
+            byte[] decompressed = new byte[expected.Length];
+
+            // act
+            BZip2Decoder.Decompress(compressed, decompressed);
+
+            // assert
+            Assert.IsTrue(expected.AsSpan().SequenceEqual(decompressed), $"Mismatch for {filename}");
         }
     }
 
-    private static int GetCrc(string fname)
+    private static byte[] Compress(byte[] data, int blockSize, bool parallel)
     {
-        using var fs1 = File.OpenRead(fname);
-        var checker = new Ionic.Crc.CRC32(true);
-        return checker.GetCrc32(fs1);
+        using MemoryStream output = new();
+
+        using (Stream compressor = parallel ? new Ionic.BZip2.ParallelBZip2OutputStream(output, blockSize, true) : new Ionic.BZip2.BZip2OutputStream(output, blockSize, true))
+        {
+            compressor.Write(data);
+        }
+
+        return output.ToArray();
     }
 
-    private static void CopyStream(Stream src, Stream dest)
+    private static byte[] DecompressWithIonic(byte[] compressed)
     {
-        byte[] buffer = new byte[4096];
-        int n;
-        while ((n = src.Read(buffer, 0, buffer.Length)) > 0)
+        using Ionic.BZip2.BZip2InputStream decompressor = new(new MemoryStream(compressed));
+        using MemoryStream output = new();
+
+        decompressor.CopyTo(output);
+
+        return output.ToArray();
+    }
+
+    // "ab" 300000 times
+    private static byte[] CreatePeriodicData()
+    {
+        byte[] data = new byte[600_000];
+
+        for (int i = 0; i < data.Length; i++)
+            data[i] = (byte)(i % 2 == 0 ? 'a' : 'b');
+
+        return data;
+    }
+
+    // many lines of a random one of the test strings
+    private byte[] CreateText()
+    {
+        string line = _testStrings.ElementAt(_random.Next(0, _testStrings.Count)).Value;
+        int count = 4000 + _random.Next(1000);
+
+        using MemoryStream stream = new();
+
+        using (StreamWriter writer = new(stream))
         {
-            dest.Write(buffer, 0, n);
+            for (int i = 0; i < count; i++)
+                writer.WriteLine(line);
         }
+
+        return stream.ToArray();
     }
 }

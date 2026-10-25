@@ -167,7 +167,7 @@ public ref struct BitReader
     /// Read a number of bits from the buffer as an array of booleans.
     /// </summary>
     /// <param name="destination">The span to fill with boolean values.</param>
-    public void ReadBitArray(Span<bool> destination)
+    public void ReadBitArray(scoped Span<bool> destination)
     {
         for (int i = 0; i < destination.Length; i++)
             destination[i] = ReadBoolean();

@@ -100,7 +100,7 @@ public struct MpqHeroesArchiveEntry
 
         uint seed = MpqHeroesArchive.HashString(Path.GetFileName(FileName), 0x300);
         if ((Flags & MpqFileFlags.BlockOffsetAdjustedKey) == MpqFileFlags.BlockOffsetAdjustedKey)
-            seed = seed + _fileOffset ^ FileSize;
+            seed = (seed + _fileOffset) ^ FileSize;
         return seed;
     }
 }

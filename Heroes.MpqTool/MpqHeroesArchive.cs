@@ -270,7 +270,7 @@ public class MpqHeroesArchive : IDisposable
                 c = '\\';
 
             c = char.ToUpperInvariant(c);
-            seed1 = _stormBuffer[offset + c] ^ seed1 + seed2;
+            seed1 = _stormBuffer[offset + c] ^ (seed1 + seed2);
             seed2 = c + seed1 + seed2 + (seed2 << 5) + 3;
         }
 
@@ -287,7 +287,7 @@ public class MpqHeroesArchive : IDisposable
             uint result = data[i];
             result ^= seed1 + seed2;
 
-            seed1 = (~seed1 << 21) + 0x11111111 | seed1 >> 11;
+            seed1 = ((~seed1 << 21) + 0x11111111) | (seed1 >> 11);
             seed2 = result + seed2 + (seed2 << 5) + 3;
             data[i] = result;
         }
@@ -303,7 +303,7 @@ public class MpqHeroesArchive : IDisposable
         {
             uint seed1 = temp - _stormBuffer[0x400 + i];
             uint seed2 = 0xeeeeeeee + _stormBuffer[0x400 + (seed1 & 0xff)];
-            uint result = value0 ^ seed1 + seed2;
+            uint result = value0 ^ (seed1 + seed2);
 
             if (result != decrypted)
                 continue;
@@ -311,11 +311,11 @@ public class MpqHeroesArchive : IDisposable
             uint saveseed1 = seed1;
 
             // Test this result against the 2nd value
-            seed1 = (~seed1 << 21) + 0x11111111 | seed1 >> 11;
+            seed1 = ((~seed1 << 21) + 0x11111111) | (seed1 >> 11);
             seed2 = result + seed2 + (seed2 << 5) + 3;
 
             seed2 += _stormBuffer[0x400 + (seed1 & 0xff)];
-            result = value1 ^ seed1 + seed2;
+            result = value1 ^ (seed1 + seed2);
 
             if ((result & 0xfffc0000) == 0)
                 return saveseed1;
@@ -356,7 +356,7 @@ public class MpqHeroesArchive : IDisposable
                 uint temp = (seed & 0xffff) << 16;
                 seed = ((seed * 125) + 3) % 0x2aaaab;
 
-                result[index2] = temp | seed & 0xffff;
+                result[index2] = temp | (seed & 0xffff);
             }
         }
 
@@ -377,13 +377,13 @@ public class MpqHeroesArchive : IDisposable
 
             result ^= seed1 + seed2;
 
-            seed1 = (~seed1 << 21) + 0x11111111 | seed1 >> 11;
+            seed1 = ((~seed1 << 21) + 0x11111111) | (seed1 >> 11);
             seed2 = result + seed2 + (seed2 << 5) + 3;
 
             data[i + 0] = (byte)(result & 0xff);
-            data[i + 1] = (byte)(result >> 8 & 0xff);
-            data[i + 2] = (byte)(result >> 16 & 0xff);
-            data[i + 3] = (byte)(result >> 24 & 0xff);
+            data[i + 1] = (byte)((result >> 8) & 0xff);
+            data[i + 2] = (byte)((result >> 16) & 0xff);
+            data[i + 3] = (byte)((result >> 24) & 0xff);
         }
     }
 

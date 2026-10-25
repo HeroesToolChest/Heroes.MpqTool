@@ -200,7 +200,7 @@ public ref struct BitReader
             _currentByte = ReadAlignedByte();
         }
 
-        bool bit = (_currentByte >> bytePosition & 1) == 1;
+        bool bit = ((_currentByte >> bytePosition) & 1) == 1;
 
         _bitIndex++;
 
@@ -336,7 +336,7 @@ public ref struct BitReader
     {
         byte dataByte = ReadAlignedByte();
         int negative = dataByte & 1;
-        long result = dataByte >> 1 & 0x3f;
+        long result = (dataByte >> 1) & 0x3f;
         int bits = 6;
 
         while ((dataByte & 0x80) != 0)
@@ -590,7 +590,7 @@ public ref struct BitReader
                 _currentByte = ReadAlignedByte();
 
             int bitsToRead = Math.Min(8 - bytePosition, numberOfBits);
-            value = value << bitsToRead | (ulong)(_currentByte >> bytePosition) & (1ul << bitsToRead) - 1ul;
+            value = (value << bitsToRead) | ((ulong)(_currentByte >> bytePosition) & ((1ul << bitsToRead) - 1ul));
 
             _bitIndex += bitsToRead;
             numberOfBits -= bitsToRead;

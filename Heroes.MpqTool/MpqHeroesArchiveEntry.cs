@@ -63,7 +63,7 @@ public struct MpqHeroesArchiveEntry
     /// </summary>
     public readonly bool IsSingleUnit => (Flags & MpqFileFlags.SingleUnit) != 0;
 
-    internal uint FilePosition { get; } // Absolute position in the file
+    internal uint FilePosition { get; } // Position from the start of the archive
 
     /// <inheritdoc/>
     public override readonly string ToString()

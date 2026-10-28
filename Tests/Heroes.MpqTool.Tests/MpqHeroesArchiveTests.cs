@@ -555,6 +555,47 @@ public class MpqHeroesArchiveTests
     }
 
     [TestMethod]
+    [DynamicData(nameof(KnownEntries))]
+    public void DecompressEntry_ArchiveNotAtStartOfStream_ReturnsEntryData(string file, string entryName, int expectedSize, string expectedSha256)
+    {
+        // arrange
+        using MpqHeroesArchive mpqHeroesArchive = MpqHeroesFile.Open(CreateStreamWithLeadingBytes(file, 123));
+        MpqHeroesArchiveEntry entry = mpqHeroesArchive.GetEntry(entryName);
+
+        // act
+        using Stream stream = mpqHeroesArchive.DecompressEntry(entry);
+
+        // assert
+        Assert.AreEqual(expectedSize, stream.Length);
+        Assert.AreEqual(expectedSha256, Sha256(ReadAll(stream)));
+    }
+
+    [TestMethod]
+    [DataRow("replayFile1.StormR")]
+    [DataRow("replayFile2.StormR")]
+    [DataRow("mapModFile1.s2ma")]
+    public void MpqArchiveEntries_ArchiveNotAtStartOfStream_MatchEntriesFromFile(string file)
+    {
+        // arrange
+        using MpqHeroesArchive fileArchive = OpenArchive(file);
+        using MpqHeroesArchive mpqHeroesArchive = MpqHeroesFile.Open(CreateStreamWithLeadingBytes(file, 0x200));
+
+        // act
+        MpqHeroesArchiveEntry[] entries = mpqHeroesArchive.MpqArchiveEntries;
+
+        // assert
+        Assert.HasCount(fileArchive.MpqArchiveEntries.Length, entries);
+
+        for (int i = 0; i < entries.Length; i++)
+        {
+            Assert.AreEqual(fileArchive.MpqArchiveEntries[i].FileName, entries[i].FileName);
+            Assert.AreEqual(fileArchive.MpqArchiveEntries[i].FileSize, entries[i].FileSize);
+            Assert.AreEqual(fileArchive.MpqArchiveEntries[i].CompressedSize, entries[i].CompressedSize);
+            Assert.AreEqual(fileArchive.MpqArchiveEntries[i].Flags, entries[i].Flags);
+        }
+    }
+
+    [TestMethod]
     [DataRow("replayFile1.StormR")]
     [DataRow("replayFile2.StormR")]
     [DataRow("mapModFile1.s2ma")]
@@ -724,6 +765,25 @@ public class MpqHeroesArchiveTests
     }
 
     [TestMethod]
+    [DataRow("replayFile1.StormR")]
+    [DataRow("mapModFile1.s2ma")]
+    public void GetHeaderBytes_ArchiveNotAtStartOfStream_ReadsFromStartOfArchive(string file)
+    {
+        // arrange
+        using MpqHeroesArchive mpqHeroesArchive = MpqHeroesFile.Open(CreateStreamWithLeadingBytes(file, 123));
+        byte[] expected = File.ReadAllBytes(Path.Join(_mpqDirectory, file))[..MpqHeroesArchive.HeaderSize];
+
+        // act
+        using Stream stream = mpqHeroesArchive.GetHeaderBytes();
+        Span<byte> buffer = stackalloc byte[MpqHeroesArchive.HeaderSize];
+        mpqHeroesArchive.GetHeaderBytes(buffer);
+
+        // assert
+        CollectionAssert.AreEqual(expected, ReadAll(stream));
+        Assert.IsTrue(buffer.SequenceEqual(expected));
+    }
+
+    [TestMethod]
     public void Dispose_ArchiveOpenedFromStream_DisposesStream()
     {
         // arrange
@@ -763,4 +823,15 @@ public class MpqHeroesArchiveTests
     }
 
     private MpqHeroesArchive OpenArchive(string file) => MpqHeroesFile.Open(Path.Join(_mpqDirectory, file));
+
+    // a stream with other bytes before the archive, positioned at the start of the archive
+    private MemoryStream CreateStreamWithLeadingBytes(string file, int leadingByteCount)
+    {
+        MemoryStream stream = new();
+        stream.Write(Enumerable.Repeat((byte)0xCC, leadingByteCount).ToArray());
+        stream.Write(File.ReadAllBytes(Path.Join(_mpqDirectory, file)));
+        stream.Position = leadingByteCount;
+
+        return stream;
+    }
 }

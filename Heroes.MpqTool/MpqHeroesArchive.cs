@@ -23,6 +23,9 @@ public class MpqHeroesArchive : IDisposable
     private static readonly uint[] _stormBuffer = BuildStormBuffer();
 
     private readonly Stream _archiveStream;
+
+    // where the archive starts in the stream, the positions in the archive are relative to it
+    private readonly long _archiveStartPosition;
     private readonly MpqHeroesArchiveEntry[] _mpqArchiveEntries;
     private readonly int _blockSize;
 
@@ -33,6 +36,7 @@ public class MpqHeroesArchive : IDisposable
     internal MpqHeroesArchive(Stream stream)
     {
         _archiveStream = stream ?? throw new ArgumentNullException(nameof(stream));
+        _archiveStartPosition = stream.Position;
 
         SetMpqHeader(stream);
 
@@ -60,7 +64,7 @@ public class MpqHeroesArchive : IDisposable
         ArgumentOutOfRangeException.ThrowIfLessThan(size, 1);
 
         byte[] data = new byte[size];
-        _archiveStream.Position = 0;
+        _archiveStream.Position = _archiveStartPosition;
         _archiveStream.ReadExactly(data);
 
         return new MemoryStream(data, writable: false);
@@ -72,7 +76,7 @@ public class MpqHeroesArchive : IDisposable
     /// <param name="buffer">A span to read in the bytes.</param>
     public void GetHeaderBytes(Span<byte> buffer)
     {
-        _archiveStream.Position = 0;
+        _archiveStream.Position = _archiveStartPosition;
         _archiveStream.ReadExactly(buffer);
     }
 
@@ -417,7 +421,7 @@ public class MpqHeroesArchive : IDisposable
     {
         _mpqHashes = new MpqHash[_mpqHeader.HashTableSize];
 
-        ReadTable(stream, _mpqHeader.HashTablePos, MemoryMarshal.Cast<MpqHash, uint>(_mpqHashes.AsSpan()), "(hash table)");
+        ReadTable(stream, _archiveStartPosition + _mpqHeader.HashTablePos, MemoryMarshal.Cast<MpqHash, uint>(_mpqHashes.AsSpan()), "(hash table)");
     }
 
     private MpqHeroesArchiveEntry[] LoadEntryTable(Stream stream)
@@ -434,7 +438,7 @@ public class MpqHeroesArchive : IDisposable
 
         try
         {
-            ReadTable(stream, _mpqHeader.BlockTablePos, table, "(block table)");
+            ReadTable(stream, _archiveStartPosition + _mpqHeader.BlockTablePos, table, "(block table)");
 
             MpqHeroesArchiveEntry[] entries = new MpqHeroesArchiveEntry[entryCount];
             uint headerOffset = (uint)_mpqHeader.HeaderOffset;
@@ -539,7 +543,7 @@ public class MpqHeroesArchive : IDisposable
 
     private void ReadSingleUnit(MpqHeroesArchiveEntry mpqArchiveEntry, Span<byte> buffer)
     {
-        _archiveStream.Position = mpqArchiveEntry.FilePosition;
+        _archiveStream.Position = _archiveStartPosition + mpqArchiveEntry.FilePosition;
 
         if (_archiveStream.ReadAtLeast(buffer, buffer.Length, throwOnEndOfStream: false) != buffer.Length)
             throw new MpqHeroesToolException("Insufficient data or invalid data length");
@@ -568,7 +572,7 @@ public class MpqHeroesArchive : IDisposable
 
         try
         {
-            _archiveStream.Position = mpqArchiveEntry.FilePosition;
+            _archiveStream.Position = _archiveStartPosition + mpqArchiveEntry.FilePosition;
             _archiveStream.ReadExactly(MemoryMarshal.AsBytes(blockPositions));
 
             if (!BitConverter.IsLittleEndian)
@@ -598,7 +602,7 @@ public class MpqHeroesArchive : IDisposable
                 while (readEndBlock < blockCount && blockPositions[readEndBlock + 1] - readStart <= compressed.Length)
                     readEndBlock++;
 
-                _archiveStream.Position = mpqArchiveEntry.FilePosition + (long)readStart;
+                _archiveStream.Position = _archiveStartPosition + mpqArchiveEntry.FilePosition + readStart;
                 _archiveStream.ReadExactly(compressed.AsSpan(0, (int)(blockPositions[readEndBlock] - readStart)));
 
                 for (; block < readEndBlock; block++)

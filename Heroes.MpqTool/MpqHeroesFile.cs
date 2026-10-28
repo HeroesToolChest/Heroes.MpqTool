@@ -32,7 +32,10 @@ public static class MpqHeroesFile
     /// <summary>
     /// Opens an MPQ file.
     /// </summary>
-    /// <param name="stream">A <see cref="Stream"/> of a MPQ file.</param>
+    /// <param name="stream">
+    /// A <see cref="Stream"/> of a MPQ file. The archive is read from the stream's current position.
+    /// <para>The stream must support seeking, and it is disposed when the archive is disposed.</para>
+    /// </param>
     /// <returns>An <see cref="MpqHeroesArchive"/>.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="stream"/> is <see langword="null"/>.</exception>
     public static MpqHeroesArchive Open(Stream stream)

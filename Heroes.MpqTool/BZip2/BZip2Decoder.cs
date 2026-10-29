@@ -1,5 +1,5 @@
 // BZip2Decoder.cs
-// Rewritten from DotNetZip's BZip2InputStream (https://github.com/DinoChiesa/DotNetZip/blob/master/BZip2/BZip2InputStream.cs),
+// Rewritten from DotNetZip's BZip2InputStream (https://github.com/DinoChiesa/DotNetZip-2025),
 // following the bzip2 reference implementation (libbzip2).
 //
 // MPQ entries are decompressed in one go: the whole compressed entry is in memory and the decompressed size is known.

@@ -30,9 +30,6 @@ The file is opened as read-only and is closed when the archive is disposed.
 
 ### Opening from a stream
 Use `MpqHeroesFile.Open(Stream stream)` to control how the file is opened, such as choosing its `FileShare` mode or other `FileStream` options.
-
-- The stream must support seeking.
-- The archive is read from the stream's **current position**, not from the beginning of the stream.
 - The archive takes ownership of the stream and disposes it when the archive is disposed.
 
 ```C#

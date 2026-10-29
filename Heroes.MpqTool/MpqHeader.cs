@@ -2,13 +2,16 @@
 
 internal class MpqHeader
 {
-    public const uint MpqId = 0x1a51504d; // 441536589
-    public const uint Size = 32;
+    private const uint MpqId = 0x1a51504d; // "MPQ\x1A"
+    private const uint UserDataId = 0x1b51504d; // "MPQ\x1B"
+    private const int Size = 32; // base header (format version 0)
+    private const int ExtendedSize = 44; // format version 1 and later add 12 bytes of high offset bits
 
-    public MpqHeader(ref BitReader bitReaderStruct)
+    private MpqHeader(ref BitReader bitReaderStruct, long headerOffset)
     {
-        if (!LocateHeader(ref bitReaderStruct))
-            throw new MpqHeroesToolException("Could not locate the header");
+        HeaderOffset = headerOffset;
+
+        bitReaderStruct.Index = 4; // skip the id, the caller already checked it
 
         DataOffset = bitReaderStruct.ReadUInt32Aligned();
         ArchiveSize = bitReaderStruct.ReadUInt32Aligned();
@@ -19,7 +22,7 @@ internal class MpqHeader
         HashTableSize = bitReaderStruct.ReadUInt32Aligned();
         BlockTableSize = bitReaderStruct.ReadUInt32Aligned();
 
-        if (MpqVersion == 1)
+        if (MpqVersion >= 1)
         {
             ExtendedBlockTableOffset = bitReaderStruct.ReadInt64Aligned();
             HashTableOffsetHigh = bitReaderStruct.ReadInt16Aligned();
@@ -57,23 +60,42 @@ internal class MpqHeader
 
     public short BlockTableOffsetHigh { get; private set; }
 
+    // Offset of the MPQ header from the start of the archive.
     public long HeaderOffset { get; private set; }
 
-    private bool LocateHeader(ref BitReader bitReaderStruct)
+    /// <summary>
+    /// Reads the MPQ header from <paramref name="stream"/>, which must be positioned at <paramref name="archiveStart"/>.
+    /// </summary>
+    /// <param name="stream">The archive stream.</param>
+    /// <param name="archiveStart">The stream position where the archive starts.</param>
+    /// <returns>The parsed header.</returns>
+    /// <exception cref="MpqHeroesToolException">The MPQ header could not be found.</exception>
+    public static MpqHeader Read(Stream stream, long archiveStart)
     {
-        for (int i = 0; i < bitReaderStruct.Length - Size; i += 0x200)
+        Span<byte> buffer = stackalloc byte[ExtendedSize];
+
+        // The archive starts with either the MPQ header or a user data header (replays and maps).
+        // The third field of the user data header is the offset of the MPQ header.
+        stream.ReadExactly(buffer[..Size]);
+        long headerOffset = 0;
+
+        if (BinaryPrimitives.ReadUInt32LittleEndian(buffer) == UserDataId)
         {
-            bitReaderStruct.Index = i;
-            uint id = bitReaderStruct.ReadUInt32Aligned();
-
-            if (id == MpqId)
-            {
-                HeaderOffset = i;
-
-                return true;
-            }
+            headerOffset = BinaryPrimitives.ReadUInt32LittleEndian(buffer[8..]);
+            stream.Position = archiveStart + headerOffset;
+            stream.ReadExactly(buffer[..Size]);
         }
 
-        return false;
+        if (BinaryPrimitives.ReadUInt32LittleEndian(buffer) != MpqId)
+            throw new MpqHeroesToolException("Could not locate the header");
+
+        int length = BinaryPrimitives.ReadUInt16LittleEndian(buffer[12..]) >= 1 ? ExtendedSize : Size;
+
+        if (length > Size)
+            stream.ReadExactly(buffer[Size..length]);
+
+        BitReader bitReader = new(buffer[..length], EndianType.LittleEndian);
+
+        return new MpqHeader(ref bitReader, headerOffset);
     }
 }

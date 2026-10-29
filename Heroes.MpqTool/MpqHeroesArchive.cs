@@ -405,12 +405,7 @@ public class MpqHeroesArchive : IDisposable
     [MemberNotNull(nameof(_mpqHeader))]
     private void SetMpqHeader(Stream stream)
     {
-        Span<byte> headerBuffer = stackalloc byte[2048]; // guess how much the header will be
-        stream.ReadExactly(headerBuffer);
-
-        BitReader bitReader = new(headerBuffer, EndianType.LittleEndian);
-
-        _mpqHeader = new MpqHeader(ref bitReader);
+        _mpqHeader = MpqHeader.Read(stream, _archiveStartPosition);
 
         if (_mpqHeader.HashTableOffsetHigh != 0 || _mpqHeader.ExtendedBlockTableOffset != 0 || _mpqHeader.BlockTableOffsetHigh != 0)
             throw new MpqHeroesToolException("MPQ format version 1 features are not supported");

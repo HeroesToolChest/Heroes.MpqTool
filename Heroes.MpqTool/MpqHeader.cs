@@ -1,6 +1,6 @@
 ﻿namespace Heroes.MpqTool;
 
-internal class MpqHeader
+internal sealed class MpqHeader
 {
     private const uint MpqId = 0x1a51504d; // "MPQ\x1A"
     private const uint UserDataId = 0x1b51504d; // "MPQ\x1B"

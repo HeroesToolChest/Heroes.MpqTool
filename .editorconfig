@@ -305,6 +305,5 @@ dotnet_diagnostic.SX1309.severity = warning
 
 # CA1852: Seal internal types
 dotnet_diagnostic.CA1852.severity = warning
-# CA1852 is off by default when the assembly has InternalsVisibleTo
+# CA1852 is off by default when the assembly has InternalsVisibleTo 
 dotnet_code_quality.CA1852.ignore_internalsvisibleto = true
-

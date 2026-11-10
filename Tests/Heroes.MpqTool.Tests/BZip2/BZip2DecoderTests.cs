@@ -1,6 +1,4 @@
-﻿using Heroes.MpqTool.BZip2;
-
-namespace Heroes.MpqTool.Tests.BZip2;
+﻿namespace Heroes.MpqTool.BZip2.Tests;
 
 [TestClass]
 public class BZip2DecoderTests
